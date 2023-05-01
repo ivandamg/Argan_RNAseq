@@ -20,6 +20,10 @@ The genome asm_hifi_Both.p_ctg was assembled on 1002 contigs and annotated. Ther
 
 ## Reads adapter trimming and quality filtering
 
+              mkdir 01_trimmed
+              module load gcc bbmap/38.6  
+           bbduk.sh in=B1_1_L4_R1_001_2avKbOqY7ITX.fastq.gz in2=B1_1_L4_R2_001_bdo0VZLZah6p.fastq.gz out=01_trimmed/B1_1_clean1.fastq.gz out2=01_trimmed/B1_1_clean2.fastq.gz ref=/work/FAC/FBM/DEE/isanders/popgen_to_var/IM/ZZ_Soft/bbmap/resources/adapters.fa ktrim=r k=23 mink=11 hdist=1 tpe tbo qtrim=r trimq=24
+
 
 ## Mapping
 
