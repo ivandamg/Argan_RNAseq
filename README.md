@@ -1,2 +1,40 @@
 # Argan_RNAseq
 Argan transcriptomic analysis on drought and AMF conditions
+
+
+# Bioinformatic analysis
+v1
+
+
+## Experimental design
+
+The plants were raised on growth chambers on different conditions. The conditions are composed of two different variables ( Mycorrhizal and Drought) with three replicates each. 
+
+## Genomic ressources
+
+The genome asm_hifi_Both.p_ctg was assembled on 1002 contigs and annotated. There were found 22349 gene models 
+
+        cat asm_hifi_Both.p_ctg.fa | grep ">" | wc -l #For contig counts
+        cat asm_hifi_Both.p_ctg.gtf | grep "gene[[:blank:]]" | wc -l #for gene model counts
+
+
+## Reads adapter trimming and quality filtering
+
+
+## Mapping
+
+
+## Gene Counts
+
+
+## Differential expression
+
+
+## Gene enrichement analysis
+
+
+
+
+
+
+
