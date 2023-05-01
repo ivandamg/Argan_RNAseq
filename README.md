@@ -1,9 +1,9 @@
-# Argan_RNAseq
+# Argan_RNAseq Bioinformatic analysis
+v1
 Argan transcriptomic analysis on drought and AMF conditions
 
 
-# Bioinformatic analysis
-v1
+
 
 
 ## Experimental design
