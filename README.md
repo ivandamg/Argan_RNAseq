@@ -1,4 +1,4 @@
-# Argan RNAseq Bioinformatic analysis
+# Argane RNAseq Bioinformatic analysis
 v1
 Argan transcriptomic analysis on drought and AMF conditions
 
