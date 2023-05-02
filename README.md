@@ -19,8 +19,10 @@ The genome asm_hifi_Both.p_ctg was assembled on 1002 contigs and annotated. Ther
 
 
 ## 1. Reads adapter trimming and quality filtering
-# BBduk documentation : https://jgi.doe.gov/data-and-tools/software-tools/bbtools/bb-tools-user-guide/bbduk-guide/
-# parameters used as  in documentation examples
+BBduk documentation : https://jgi.doe.gov/data-and-tools/software-tools/bbtools/bb-tools-user-guide/bbduk-guide/
+parameters used as  in documentation examples
+
+
               mkdir 01_Cleanning
               module load UHTS/Analysis/BBMap/38.91  
               
@@ -29,8 +31,12 @@ The genome asm_hifi_Both.p_ctg was assembled on 1002 contigs and annotated. Ther
               #Create statistics table
               
 
-## Mapping
+## 2. transcript quantification with salmon
+https://combine-lab.github.io/salmon/getting_started/
 
+Map to DAOM genome script: 
+
+                for FILE in *clean1.fastq.gz; do echo ${FILE}; sbatch -o $(echo ${FILE} | cut -d'' -f1,2)bbmap.stdout.txt -J B$(echo ${FILE} | cut -d'' -f1,2) -e {FILE}| cut -d'_' -f1,2)_bbmap.stderr.txt ../0003_bbmap_curnagleB1_v2.sh ${FILE}; sleep 1; done
 
 ## Gene Counts
 
