@@ -34,14 +34,22 @@ parameters used as  in documentation examples
 ## 2. transcript quantification with salmon
 https://combine-lab.github.io/salmon/getting_started/
 
-Map to DAOM genome script: 
+
+a. obtain salmon
+
+
+b. build an index on the transcriptome
+
+
+c. Quantify the samples
+
 
                 for FILE in *clean1.fastq.gz; do echo ${FILE}; sbatch -o $(echo ${FILE} | cut -d'' -f1,2)bbmap.stdout.txt -J B$(echo ${FILE} | cut -d'' -f1,2) -e {FILE}| cut -d'_' -f1,2)_bbmap.stderr.txt ../0003_bbmap_curnagleB1_v2.sh ${FILE}; sleep 1; done
 
-## Gene Counts
+## 3. Quantification import with tximport
 
 
-## Differential expression
+## 4. Differential expression with DEseq2
 
 
 ## Gene enrichement analysis
