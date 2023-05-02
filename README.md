@@ -1,4 +1,4 @@
-# Argan_RNAseq Bioinformatic analysis
+# Argan RNAseq Bioinformatic analysis
 v1
 Argan transcriptomic analysis on drought and AMF conditions
 
@@ -18,13 +18,16 @@ The genome asm_hifi_Both.p_ctg was assembled on 1002 contigs and annotated. Ther
         cat asm_hifi_Both.p_ctg.gtf | grep "gene[[:blank:]]" | wc -l #for gene model counts
 
 
-## Reads adapter trimming and quality filtering
-
+## 1. Reads adapter trimming and quality filtering
+# BBduk documentation : https://jgi.doe.gov/data-and-tools/software-tools/bbtools/bb-tools-user-guide/bbduk-guide/
+# parameters used as  in documentation examples
               mkdir 01_Cleanning
               module load UHTS/Analysis/BBMap/38.91  
               
               srun --cpus-per-task=1 --mem-per-cpu=24000 --time=00:10:00 --pty bbduk.sh in=1A_1.fastq.gz in2=1A_2.fastq.gz out=../01_Cleanning/1A_1_clean.fastq.gz out2=../01_Cleanning/1A_2_clean.fastq.gz ref=adapters ktrim=r k=23 mink=11 hdist=1 tpe tbo qtrim=r trimq=24
-
+              
+              #Create statistics table
+              
 
 ## Mapping
 
