@@ -33,21 +33,19 @@ parameters used as  in documentation examples
 ## 2 . Identify mycorrhizal reads with MASH  
 https://mash.readthedocs.io/en/latest/
 
-a. Download Mycorrhizal RefSeq genomes 
+a. Download Mycorrhizal GenBank genome assemblies
 
 b. Build reference index of mycorrhizal genomes
                
-               mash sketch -o reference genome1.fna genome2.fna
+               mash sketch -o AMF_GeneBank_ref */*.fna.gz
                mash info reference.msh
-               /scratch/wally/FAC/FBM/DEE/isanders/popgen_to_var/IM/Soft/mash-Linux64-v2.2/mash sketch -o References_glomero6 *.fna.gz
+               
        
        
 c. Screen genomes against MASH refSeq db
 The fields ouptut are [identity, shared-hashes, median-multiplicity, p-value, query-ID, query-comment]:
 
-       /scratch/wally/FAC/FBM/DEE/isanders/popgen_to_var/IM/Soft/mash-Linux64-v2.2/mash screen -w -p 8 RefSeq_fungi_1perSpecies_1721.msh ../../../BRA337_DAOM197198_1_SRX4991128_1.fastq.gz > ../Screen_BRA337_DAOM197198_1.tab
-
-for i in $(ls *.fastq.gz); do echo $i; /scratch/wally/FAC/FBM/DEE/isanders/popgen_to_var/IM/Soft/mash-Linux64-v2.2/mash screen -w -p 8 /scratch/wally/FAC/FBM/DEE/isanders/popgen_to_var/IM/02_Co-inoc/ZZ_ISMEJ_REVISION/06_OtherSeqOrg/01_Reffungi1species/RefSeq_fungi_1perSpecies_1721.msh $i > ZZ_ISMEJ_REVISION/06_OtherSeqOrg/Screen_$(echo $i | cut -d'_' -f1,2,3).out ; done
+                for i in $(ls *.fastq.gz); do echo $i; ~/00_Software/mash-Linux64-v2.3/mash screen -w -p 8 /data/projects/p782_RNA_seq_Argania_spinosa/11_Mycorrhizal_containement/AMF_GeneBank_ref.msh $i > /data/projects/p782_RNA_seq_Argania_spinosa/11_Mycorrhizal_containement/Screen_$(echo $i | cut -d'.' -f1).out ; done
 
 
 # add filename in last column
