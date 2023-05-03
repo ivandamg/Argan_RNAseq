@@ -28,6 +28,13 @@ parameters used as  in documentation examples
               
               srun --cpus-per-task=1 --mem-per-cpu=32000 --time=00:15:00 --pty bbduk.sh in=1A_1.fastq.gz in2=1A_2.fastq.gz out=../01_Cleanning/1A_1_clean.fastq.gz out2=../01_Cleanning/1A_2_clean.fastq.gz ref=adapters ktrim=r k=23 mink=11 hdist=1 tpe tbo qtrim=r trimq=24
               
+              for i in $(ls [3-9]*_1.fastq.gz); do echo $i; bbduk.sh in=$i in2=$(echo $i | cut -d'_' -f1)_2.fastq.gz out=../01_Cleanning/$(echo $i | cut -d'_' -f1)_1_clean.fastq.gz out2=../01_Cleanning/$(echo $i | cut -d'_' -f1)_2_clean.fastq.gz ref=adapters ktrim=r k=23 mink=11 hdist=1 tpe tbo qtrim=r trimq=24 ; done
+              
+    on cluster test
+              
+              sbatch --partition=pall -w binfservas37 --job-name=bbtest --time=00:01:00 --mem-per-cpu=32G --cpus-per-task=8 --output=bbtest.out --error=bbtest.error --mail-type=END,FAIL 
+              sbatch --partition=pall -w binfservas20 --job-name=bbtest --time=00:00:03 --mem-per-cpu=2G --cpus-per-task=1 --output=bbtest.out --error=bbtest.error --mail-type=END,FAIL; echo "HELLO WORLD" ; sleep 40
+              
               #Create statistics table
               
 ## 2 . Identify mycorrhizal reads with MASH  
@@ -48,8 +55,10 @@ The fields ouptut are [identity, shared-hashes, median-multiplicity, p-value, qu
                 for i in $(ls *.fastq.gz); do echo $i; ~/00_Software/mash-Linux64-v2.3/mash screen -w -p 8 /data/projects/p782_RNA_seq_Argania_spinosa/11_Mycorrhizal_containement/AMF_GeneBank_ref.msh $i > /data/projects/p782_RNA_seq_Argania_spinosa/11_Mycorrhizal_containement/Screen_$(echo $i | cut -d'.' -f1).out ; done
 
 
-# add filename in last column
- for f in Screen*; do sed -i "s/$/\t$f/" $f; done    
+                        # Sort and add filename in last column
+                        for f in Screen*; do echo $f; sort -gr $f | sed -i "s/$/\t$f/" $f; done    
+                        
+                        Concatenate all files into a table
 
 See more common
 
