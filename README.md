@@ -77,12 +77,15 @@ https://combine-lab.github.io/salmon/getting_started/
 
 a. obtain salmon
 
+                module load UHTS/Analysis/salmon/0.11.2
 
 b. build an index on the transcriptome
 
+                salmon index -t ../00_Genome/Argan2-publish-files/Argania-spinosa-argan2-v1.0.a1.6346630e4cbe5-publish.genes.fna -i argane_index
 
 c. Quantify the samples
 
+                for i in $(ls *_1_clean.fastq.gz); do echo $i;salmon quant -i /data/projects/p782_RNA_seq_Argania_spinosa/02_SalmonQuantification/argane_index -l A -1 $i -2 $(echo $i | cut -d'_' -f1)_2_clean.fastq.gz -p 8 --validateMappings -o /data/projects/p782_RNA_seq_Argania_spinosa/02_SalmonQuantification/$i_quant ; done
 
                 for FILE in *clean1.fastq.gz; do echo ${FILE}; sbatch -o $(echo ${FILE} | cut -d'' -f1,2)bbmap.stdout.txt -J B$(echo ${FILE} | cut -d'' -f1,2) -e {FILE}| cut -d'_' -f1,2)_bbmap.stderr.txt ../0003_bbmap_curnagleB1_v2.sh ${FILE}; sleep 1; done
 
