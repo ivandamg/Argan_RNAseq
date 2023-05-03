@@ -36,6 +36,8 @@ parameters used as  in documentation examples
               sbatch --partition=pall -w binfservas20 --job-name=bbtest --time=00:00:03 --mem-per-cpu=2G --cpus-per-task=1 --output=bbtest.out --error=bbtest.error --mail-type=END,FAIL; echo "HELLO WORLD" ; sleep 40
               
               #Create statistics table
+              echo "" > Reads_raw.tmp
+              for i in $(ls *.fastq.gz); do zcat $i | grep ">" | wc -l ; done >> Reads_raw.tmp # with this commmand ex
               
 ## 2 . Identify mycorrhizal reads with MASH  
 https://mash.readthedocs.io/en/latest/
