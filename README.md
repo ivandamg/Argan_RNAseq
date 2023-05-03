@@ -26,12 +26,29 @@ parameters used as  in documentation examples
               mkdir 01_Cleanning
               module load UHTS/Analysis/BBMap/38.91  
               
-              srun --cpus-per-task=1 --mem-per-cpu=24000 --time=00:10:00 --pty bbduk.sh in=1A_1.fastq.gz in2=1A_2.fastq.gz out=../01_Cleanning/1A_1_clean.fastq.gz out2=../01_Cleanning/1A_2_clean.fastq.gz ref=adapters ktrim=r k=23 mink=11 hdist=1 tpe tbo qtrim=r trimq=24
+              srun --cpus-per-task=1 --mem-per-cpu=32000 --time=00:15:00 --pty bbduk.sh in=1A_1.fastq.gz in2=1A_2.fastq.gz out=../01_Cleanning/1A_1_clean.fastq.gz out2=../01_Cleanning/1A_2_clean.fastq.gz ref=adapters ktrim=r k=23 mink=11 hdist=1 tpe tbo qtrim=r trimq=24
               
               #Create statistics table
               
+## 2 . Identify contaminants of genome assemblies with MASH  https://mash.readthedocs.io/en/latest/
 
-## 2. transcript quantification with salmon
+a. Build reference index
+               /scratch/wally/FAC/FBM/DEE/isanders/popgen_to_var/IM/Soft/mash-Linux64-v2.2/mash sketch -o References_glomero6 *
+       
+       
+b. Screen genomes against MASH refSeq db
+The fields ouptut are [identity, shared-hashes, median-multiplicity, p-value, query-ID, query-comment]:
+
+       /scratch/wally/FAC/FBM/DEE/isanders/popgen_to_var/IM/Soft/mash-Linux64-v2.2/mash screen -w -p 16 /scratch/wally/FAC/FBM/DEE/isanders/popgen_to_var/IM/10_Contaminants/00_GeneBank_Complete_Bacteria/Reference_GeneBank_2549_Bacteria_completeGenomes.msh 01_Genomes/Rclarus_HR1_GCA003203555.1.fna.gz > 03_BacteriaContaminants_Glomeromycetes/Screen_RefSeqk21S1000_Rclarus.tab
+       
+       
+       IN loop
+       
+      for i in $(ls *.fna.gz); do echo $i; /scratch/wally/FAC/FBM/DEE/isanders/popgen_to_var/IM/Soft/mash-Linux64-v2.2/mash screen -w -p 16 /scratch/wally/FAC/FBM/DEE/isanders/popgen_to_var/IM/10_Contaminants/00_GeneBank_Complete_Bacteria/Reference_GeneBank_2549_Bacteria_completeGenomes.msh $i > ../03_BacteriaContaminants_Glomeromycetes/Screen_RefSeqk21S1000_$(echo $i | cut -d'_' -f1,2,3).tab ; done 
+
+
+
+## 3. transcript quantification with salmon
 https://combine-lab.github.io/salmon/getting_started/
 
 
