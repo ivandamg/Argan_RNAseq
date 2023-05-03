@@ -30,17 +30,33 @@ parameters used as  in documentation examples
               
               #Create statistics table
               
-## 2 . Identify contaminants of genome assemblies with MASH  https://mash.readthedocs.io/en/latest/
+## 2 . Identify mycorrhizal reads with MASH  
+https://mash.readthedocs.io/en/latest/
 
-a. Build reference index
-               /scratch/wally/FAC/FBM/DEE/isanders/popgen_to_var/IM/Soft/mash-Linux64-v2.2/mash sketch -o References_glomero6 *
+a. Download Mycorrhizal RefSeq genomes 
+
+b. Build reference index of mycorrhizal genomes
+               
+               mash sketch -o reference genome1.fna genome2.fna
+               mash info reference.msh
+               /scratch/wally/FAC/FBM/DEE/isanders/popgen_to_var/IM/Soft/mash-Linux64-v2.2/mash sketch -o References_glomero6 *.fna.gz
        
        
-b. Screen genomes against MASH refSeq db
+c. Screen genomes against MASH refSeq db
 The fields ouptut are [identity, shared-hashes, median-multiplicity, p-value, query-ID, query-comment]:
 
-       /scratch/wally/FAC/FBM/DEE/isanders/popgen_to_var/IM/Soft/mash-Linux64-v2.2/mash screen -w -p 16 /scratch/wally/FAC/FBM/DEE/isanders/popgen_to_var/IM/10_Contaminants/00_GeneBank_Complete_Bacteria/Reference_GeneBank_2549_Bacteria_completeGenomes.msh 01_Genomes/Rclarus_HR1_GCA003203555.1.fna.gz > 03_BacteriaContaminants_Glomeromycetes/Screen_RefSeqk21S1000_Rclarus.tab
-       
+       /scratch/wally/FAC/FBM/DEE/isanders/popgen_to_var/IM/Soft/mash-Linux64-v2.2/mash screen -w -p 8 RefSeq_fungi_1perSpecies_1721.msh ../../../BRA337_DAOM197198_1_SRX4991128_1.fastq.gz > ../Screen_BRA337_DAOM197198_1.tab
+
+for i in $(ls *.fastq.gz); do echo $i; /scratch/wally/FAC/FBM/DEE/isanders/popgen_to_var/IM/Soft/mash-Linux64-v2.2/mash screen -w -p 8 /scratch/wally/FAC/FBM/DEE/isanders/popgen_to_var/IM/02_Co-inoc/ZZ_ISMEJ_REVISION/06_OtherSeqOrg/01_Reffungi1species/RefSeq_fungi_1perSpecies_1721.msh $i > ZZ_ISMEJ_REVISION/06_OtherSeqOrg/Screen_$(echo $i | cut -d'_' -f1,2,3).out ; done
+
+
+# add filename in last column
+ for f in Screen*; do sed -i "s/$/\t$f/" $f; done    
+
+See more common
+
+     for i in $(ls Screen_*.out); do echo $i; sort -gr $i | head ; done
+
        
        IN loop
        
