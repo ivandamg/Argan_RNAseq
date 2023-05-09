@@ -96,7 +96,7 @@ c. Quantify the samples
                 for i in $(ls 9*_1_clean.fastq.gz); do echo $i;salmon quant -i /data/projects/p782_RNA_seq_Argania_spinosa/02_SalmonQuantification/argane_index -l A -1 $i -2 $(echo $i | cut -d'_' -f1)_2_clean.fastq.gz -p 8 --validateMappings -o /data/projects/p782_RNA_seq_Argania_spinosa/02_SalmonQuantification/$i_quant ; done
 
                 #in cluster      
-                for FILE in $(ls *_1_clean.fastq.gz); do echo $FILE; sbatch --partition=pall --job-name=bbtest --time=00:10:00 --mem-per-cpu=32G --cpus-per-task=1 --output=bbtest.out --error=bbtest.error --mail-type=END,FAIL --wrap "module load UHTS/Analysis/salmon/0.11.2; salmon quant -i /data/projects/p782_RNA_seq_Argania_spinosa/02_SalmonQuantification/argane_index -l A -1 $FILE -2 $(echo $FILE | cut -d'_' -f1)_2_clean.fastq.gz -p 8 --validateMappings -o /data/projects/p782_RNA_seq_Argania_spinosa/02_SalmonQuantification/$FILE_quant "   ; sleep 1; done
+                for FILE in $(ls *_1_clean.fastq.gz); do echo $FILE; sbatch --partition=pall --job-name=bbtest --time=02:00:00 --mem-per-cpu=12G --cpus-per-task=1 --output=bbtest.out --error=bbtest.error --mail-type=END,FAIL --wrap "module load UHTS/Analysis/salmon/0.11.2; salmon quant -i /data/projects/p782_RNA_seq_Argania_spinosa/02_SalmonQuantification/argane_index -l A -1 $FILE -2 $(echo $FILE | cut -d'_' -f1)_2_clean.fastq.gz -p 8 --validateMappings -o /data/projects/p782_RNA_seq_Argania_spinosa/02_SalmonQuantification/$(echo $FILE | cut -d'_' -f1)_quant "   ; sleep 1; done
 
 
 
