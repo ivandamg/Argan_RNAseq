@@ -37,10 +37,12 @@ parameters used as  in documentation examples
               
               #Create statistics table
               echo "" > Reads_raw.tmp
-              for i in $(ls *.fastq.gz); do zcat $i | grep ">" | wc -l ; done >> Reads_raw.tmp # with this commmand ex
+              for i in $(ls *.fastq.gz); do zcat $i | grep ">" | wc -l >> Reads_raw.tmp; done  # with this commmand ex
               echo "" > Reads_cleaned.tmp
-              for i in $(ls *.fastq.gz); do zcat $i | grep ">" | wc -l ; done >> Reads_cleaned.tmp # with this commmand ex
+              for i in $(ls *.fastq.gz); do zcat $i | grep ">" | wc -l >> Reads_cleaned.tmp ; done  # with this commmand ex
               
+              # in cluster
+              sbatch --partition=pall --job-name=countraw --time=00:10:00 --mem-per-cpu=8G --cpus-per-task=1 --output=bbtest.out --error=bbtest.error --mail-type=END,FAIL --wrap "echo "" > Reads_raw.tmp; for i in $(ls *.fastq.gz); do zcat $i | grep ">" | wc -l ; done"  
               
 ## 2 . Identify mycorrhizal reads with MASH  
 https://mash.readthedocs.io/en/latest/
