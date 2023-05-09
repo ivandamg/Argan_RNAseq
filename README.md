@@ -100,10 +100,17 @@ c. Quantify the samples
 
                 # Count nb. of genes with more than zero reads 
                 for i in $(ls *_quant/*.sf); do cat $i | awk '$5 >0' | wc -l; done
-                # Change name of quant file
-
+                # Change name of quant file for all files
+                cp 7A_quant/quant.sf 7A_quant.sf
+                cp 8A_quant/quant.sf 8A_quant.sf
+                cp 9A_quant/quant.sf 9A_quant.sf
+                gzip *.sf
 
 ## 3. Quantification import with tximport
+http://bioconductor.org/packages/release/bioc/vignettes/tximport/inst/doc/tximport.html
+
+
+
 
 
 ## 4. Differential expression with DEseq2
