@@ -38,6 +38,9 @@ parameters used as  in documentation examples
               #Create statistics table
               echo "" > Reads_raw.tmp
               for i in $(ls *.fastq.gz); do zcat $i | grep ">" | wc -l ; done >> Reads_raw.tmp # with this commmand ex
+              echo "" > Reads_cleaned.tmp
+              for i in $(ls *.fastq.gz); do zcat $i | grep ">" | wc -l ; done >> Reads_cleaned.tmp # with this commmand ex
+              
               
 ## 2 . Identify mycorrhizal reads with MASH  
 https://mash.readthedocs.io/en/latest/
@@ -87,9 +90,13 @@ b. build an index on the transcriptome
 
 c. Quantify the samples
 
-                for i in $(ls *_1_clean.fastq.gz); do echo $i;salmon quant -i /data/projects/p782_RNA_seq_Argania_spinosa/02_SalmonQuantification/argane_index -l A -1 $i -2 $(echo $i | cut -d'_' -f1)_2_clean.fastq.gz -p 8 --validateMappings -o /data/projects/p782_RNA_seq_Argania_spinosa/02_SalmonQuantification/$i_quant ; done
+                # in local
+                for i in $(ls 9*_1_clean.fastq.gz); do echo $i;salmon quant -i /data/projects/p782_RNA_seq_Argania_spinosa/02_SalmonQuantification/argane_index -l A -1 $i -2 $(echo $i | cut -d'_' -f1)_2_clean.fastq.gz -p 8 --validateMappings -o /data/projects/p782_RNA_seq_Argania_spinosa/02_SalmonQuantification/$i_quant ; done
 
-                for FILE in *clean1.fastq.gz; do echo ${FILE}; sbatch -o $(echo ${FILE} | cut -d'' -f1,2)bbmap.stdout.txt -J B$(echo ${FILE} | cut -d'' -f1,2) -e {FILE}| cut -d'_' -f1,2)_bbmap.stderr.txt ../0003_bbmap_curnagleB1_v2.sh ${FILE}; sleep 1; done
+                #in cluster      
+                for FILE in $(ls *_1_clean.fastq.gz); do echo $FILE; sbatch --partition=pall --job-name=bbtest --time=00:10:00 --mem-per-cpu=32G --cpus-per-task=1 --output=bbtest.out --error=bbtest.error --mail-type=END,FAIL --wrap "module load UHTS/Analysis/salmon/0.11.2; salmon quant -i /data/projects/p782_RNA_seq_Argania_spinosa/02_SalmonQuantification/argane_index -l A -1 $FILE -2 $(echo $FILE | cut -d'_' -f1)_2_clean.fastq.gz -p 8 --validateMappings -o /data/projects/p782_RNA_seq_Argania_spinosa/02_SalmonQuantification/$FILE_quant "   ; sleep 1; done
+
+
 
 ## 3. Quantification import with tximport
 
