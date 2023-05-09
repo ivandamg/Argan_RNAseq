@@ -106,14 +106,16 @@ c. Quantify the samples
                 cp 9A_quant/quant.sf 9A_quant.sf
                 gzip *.sf
 
-## 3. Quantification import with tximport
+## 3. Quantification import with tximport in R
 http://bioconductor.org/packages/release/bioc/vignettes/tximport/inst/doc/tximport.html
 
 
 
 
 
-## 4. Differential expression with DEseq2
+## 4. Differential expression with DESeq2 in R
+https://www.bioconductor.org/packages/devel/bioc/vignettes/DESeq2/inst/doc/DESeq2.html#differential-expression-analysis
+
 
 
 ## Gene enrichement analysis
