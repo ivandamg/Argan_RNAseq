@@ -76,6 +76,43 @@ See more common
        
       for i in $(ls *.fna.gz); do echo $i; /scratch/wally/FAC/FBM/DEE/isanders/popgen_to_var/IM/Soft/mash-Linux64-v2.2/mash screen -w -p 16 /scratch/wally/FAC/FBM/DEE/isanders/popgen_to_var/IM/10_Contaminants/00_GeneBank_Complete_Bacteria/Reference_GeneBank_2549_Bacteria_completeGenomes.msh $i > ../03_BacteriaContaminants_Glomeromycetes/Screen_RefSeqk21S1000_$(echo $i | cut -d'_' -f1,2,3).tab ; done 
 
+## 3. transcript quantification of AMF with salmon
+https://combine-lab.github.io/salmon/getting_started/
+
+Quantify how many transcript map to different AMF genomes: 
+1. Claroideoglomus_candidum
+2. Diversispora_eburnea
+3. Diversispora_epigaea
+4. Rhizophagus_irregularis
+5. Scutellospora_calospora
+6. Funneliformis_mosseae
+
+
+
+
+a. obtain salmon
+
+                module load UHTS/Analysis/salmon/0.11.2
+
+b. build an index on the transcriptome
+
+                salmon index -t GCA_910592215.1_Claroideoglomus_candidum_CCK_pot_B_6-9_cds_from_genomic.fna -i Claroideoglomus_candidum_index
+                salmon index -t GCA_910592015.1_Diversispora_eburnea_AZ414A_cds_from_genomic.fna -i Diversispora_eburnea_index
+c. Quantify the samples
+
+                #in cluster      
+                for FILE in $(ls *_1_clean.fastq.gz); do echo $FILE; sbatch --partition=pall --job-name=$(echo $FILE | cut -d'_' -f1) --time=02:00:00 --mem-per-cpu=12G --cpus-per-task=1 --output=bbtest.out --error=bbtest.error --mail-type=END,FAIL --wrap "module load UHTS/Analysis/salmon/0.11.2; salmon quant -i /data/projects/p782_RNA_seq_Argania_spinosa/03_SalmonQuantificationAMF/Claroideoglomus_candidum_index -l A -1 $FILE -2 $(echo $FILE | cut -d'_' -f1)_2_clean.fastq.gz -p 8 --validateMappings -o /data/projects/p782_RNA_seq_Argania_spinosa/03_SalmonQuantificationAMF/$(echo $FILE | cut -d'_' -f1)_Claroideoglomus_candidum_quant "   ; sleep 1; done
+                for FILE in $(ls *_1_clean.fastq.gz); do echo $FILE; sbatch --partition=pall --job-name=DE$(echo $FILE | cut -d'_' -f1) --time=02:00:00 --mem-per-cpu=12G --cpus-per-task=1 --output=bbtest.out --error=bbtest.error --mail-type=END,FAIL --wrap "module load UHTS/Analysis/salmon/0.11.2; salmon quant -i /data/projects/p782_RNA_seq_Argania_spinosa/03_SalmonQuantificationAMF/Diversispora_eburnea_index -l A -1 $FILE -2 $(echo $FILE | cut -d'_' -f1)_2_clean.fastq.gz -p 8 --validateMappings -o /data/projects/p782_RNA_seq_Argania_spinosa/03_SalmonQuantificationAMF/$(echo $FILE | cut -d'_' -f1)_Diversispora_eburnea_index_quant "   ; sleep 1; done
+
+                # Count nb. of genes with more than zero reads 
+                for i in $(ls *_quant/*.sf); do cat $i | awk '$5 >0' | wc -l; done
+                # Change name of quant file for all files
+                cp 7A_quant/quant.sf 7A_quant.sf
+                cp 8A_quant/quant.sf 8A_quant.sf
+                cp 9A_quant/quant.sf 9A_quant.sf
+                gzip *.sf
+
+
 
 
 ## 3. transcript quantification with salmon
