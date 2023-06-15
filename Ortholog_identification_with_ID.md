@@ -26,6 +26,12 @@
     
     5. reciprocal blast on original M truncatula genome
     
-    
-    
+Method 2.
+
+1. Select 10 AMS genes from Bravo et al.,2017
+2. blast all the genes to Argan transcriptome
+3. Filter blast hits with %similarity >50%
+4. select the gene id and Look at the Dataset if Differentially expressed and make a table.
+5. Redo for Drought genes. (find list of conserved drought genes.
+   
     
