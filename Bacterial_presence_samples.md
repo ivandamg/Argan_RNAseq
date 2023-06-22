@@ -27,6 +27,21 @@ mash dist reference.msh genome3.fna
             for f in Screen*; do echo $f; sort -gr $f | sed -i "s/$/\t$f/" $f; done    
                     
 4. Concatenate all files into a table
+            cat Screen_1A_1_clean.out >> ALL_Screen_4585Bacteria_v1.txt
+            cat Screen_2A_1_clean.out >> ALL_Screen_4585Bacteria_v1.txt
+            cat Screen_3A_1_clean.out >> ALL_Screen_4585Bacteria_v1.txt
+            cat Screen_4A_1_clean.out >> ALL_Screen_4585Bacteria_v1.txt
+            cat Screen_5A_1_clean.out >> ALL_Screen_4585Bacteria_v1.txt
+            cat Screen_6A_1_clean.out >> ALL_Screen_4585Bacteria_v1.txt
+            cat Screen_7A_1_clean.out >> ALL_Screen_4585Bacteria_v1.txt
+            cat Screen_8A_1_clean.out >> ALL_Screen_4585Bacteria_v1.txt
+            cat Screen_9A_1_clean.out >> ALL_Screen_4585Bacteria_v1.txt
+            cat Screen_10A_1_clean.out >> ALL_Screen_4585Bacteria_v1.txt
+            cat Screen_11A_1_clean.out >> ALL_Screen_4585Bacteria_v1.txt
+            cat Screen_12A_1_clean.out >> ALL_Screen_4585Bacteria_v1.txt
+
+
+
 
 5. See more common
 
