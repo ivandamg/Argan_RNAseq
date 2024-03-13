@@ -13,5 +13,5 @@
 
 3. Ortholog inference part
 
-           sbatch --partition=pibu_el8 --job-name=OMA3 --time=0-06:00:00 --mem-per-cpu=50G --ntasks=1 --cpus-per-task=1 --output=logs/oma3-%J.log --error=logs/oma3-%J.err --mail-type=END,FAIL --wrap "cd /data/projects/p782_RNA_seq_Argania_spinosa/21_RNAseqV2/06_Orthologs/01_plantSpecies/OMA.2.6.0; ./bin/oma"
+           sbatch --partition=pibu_el8 --job-name=OMA3 --time=0-10:00:00 --mem-per-cpu=50G --ntasks=1 --cpus-per-task=1 --output=logs/oma3-%J.log --error=logs/oma3-%J.err --mail-type=END,FAIL --wrap "cd /data/projects/p782_RNA_seq_Argania_spinosa/21_RNAseqV2/06_Orthologs/01_plantSpecies/OMA.2.6.0; ./bin/oma"
 
