@@ -87,3 +87,10 @@ e. Quantify the samples
             c. Select only the blast result of the OMA ortholog
 
                      for i in $(ls Blast_*.xml); do echo $i; awk '{ if (($1 ~ /'$(echo $i |cut -d'_' -f4)'/) && ($2 ~ /'$(echo $i |cut -d'_' -f6|cut -d'.' -f1)'/)) { print } }' $i > FinalBlast_$(echo $i |cut -d'.' -f1).xml; done
+
+            d. Sumarize the results in a single table
+
+                  echo '' > ALL_OG_Blast_hap1hap2.xml # Create an empty file
+                  for i in $(ls FinalBlast*.xml);do cat $i |head -1 | sed "s/$/,$(echo $i | cut -d'_' -f2)/" | sed 's/[0-9]*.,//' >> ALL_OG_Blast_hap1hap2.xml; done
+
+   d. Plot the results with R.
