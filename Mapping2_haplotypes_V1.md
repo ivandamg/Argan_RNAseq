@@ -48,3 +48,42 @@ e. Quantify the samples
             cp 8A_quant/quant.sf 8A_quant.sf
             cp 9A_quant/quant.sf 9A_quant.sf
             gzip *.sf
+
+
+3. Similarity between haplotypes.
+
+   a. Make db on protein
+            module load BLAST+
+            makeblastdb -dbtype prot -in Hap1_A_spinosa.fa -parse_seqids -out db_aa/Hap1_db
+            makeblastdb -dbtype prot -in Hap2_A_spinosa.fa -parse_seqids -out db_aa/Hap2_db
+
+   b. Select each of the 1:1 orthologs and blast each id to all proteins
+
+   The 1:1 orthologs between the two haplotypes can be found at the OrhtologousGroups.txt file. This file contains the Orthologoup group assigned, the gene id of the first (hap1), second (hap2) and third sample (Mtruncatula).
+   In our case we are only interested on the Orthologous groups showing a match between hap1 and hap2. so we can identify them by exporting the table to excel and filter the columns and selecting only the ones that have an hap1 and hap2 ortholog.
+
+   c. Create script to make a blast for each orthologous group
+
+   The fasta sequencees of each orthologous genes are found in the folder OrthologousGroupsFasta.
+   We can blast the OG file against itself and this will give us the similarity value between hap1 and hap2.
+
+   The result of the blast should be:
+
+   Hap1 vs Hap1
+   Hap1 vs Hap2
+   Hap2 vs Hap1
+   Hap2 vs Hap2
+
+   We are interested in the comparison between hap1 and hap2.
+
+            a. creat db for all the files on orthodb
+
+                              for i in $(ls OG6*.fa); do echo $i; /home/imateusgonzalez/00_Software/ncbi-blast-2.15.0+/bin/makeblastdb -dbtype prot -in $i -parse_seqids -out /data/projects/p782_RNA_seq_Argania_spinosa/21_RNAseqV2/06_Orthologs/03_Similarity_btw_haplotypes/db_OG/$(echo $i |cut -d'.' -f1)_db; done
+
+            b. We will blast each OMA orthogroup file to the hap2 aa db. Now create a file that contains the instructions for making the blast between each one of the orthologous groups between hap1 et hap2 1:1 agaisnt the hap2 db. Then execute in cluster.
+   
+                              sbatch --partition=pibu_el8 --job-name=Blast --time=0-10:00:00 --mem-per-cpu=2G --ntasks=1 --cpus-per-task=1 --output=blast.out --error=blast.err --mail-type=END,FAIL --wrap "cd /data/projects/p782_RNA_seq_Argania_spinosa/21_RNAseqV2/06_Orthologs/03_Similarity_btw_haplotypes/01_BlastedOG;  bash Command_blast_OG.txt"
+
+            c. Select only the blast result of the OMA ortholog
+
+                     for i in $(ls Blast_*.xml); do echo $i; awk '{ if (($1 ~ /'$(echo $i |cut -d'_' -f4)'/) && ($2 ~ /'$(echo $i |cut -d'_' -f6|cut -d'.' -f1)'/)) { print } }' $i > FinalBlast_$(echo $i |cut -d'.' -f1).xml; done
