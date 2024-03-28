@@ -23,9 +23,9 @@ https://github.com/slimsuite/chromsyn/blob/main/Walkthrough.md
 
 #3. tidk in local
 
-    tidk search hap1.fasta -o hap1 -s AACCCT --dir hap1;cp -v hap1/hap1_telomeric_repeat_windows.tsv hap1/hap1.tidk.csv
+    tidk search hap1.fasta -o hap1 -s AACCCT --dir hap1;cp -v hap1/hap1_telomeric_repeat_windows.tsv hap1/hap1.tidk.csv; cp hap1/hap1.tidk.csv .
 
-    tidk search hap2.fasta -o hap2 -s AACCCT --dir hap2;cp -v hap2/hap2_telomeric_repeat_windows.tsv hap2/hap2.tidk.csv
+    tidk search hap2.fasta -o hap2 -s AACCCT --dir hap2;cp -v hap2/hap2_telomeric_repeat_windows.tsv hap2/hap2.tidk.csv; cp hap2/hap2.tidk.csv .
 
 # 4. move the files into a single directory
 
