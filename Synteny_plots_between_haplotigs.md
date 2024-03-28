@@ -17,6 +17,10 @@ sbatch --partition=pibu_el8 --job-name=hap1Busco --time=0-10:00:00 --mem-per-cpu
 sbatch --partition=pibu_el8 --job-name=hap2Busco --time=0-10:00:00 --mem-per-cpu=50G --ntasks=12 --cpus-per-task=1 --output=BuscoHap2.out --error=BuscoHap2.error --mail-type=END,FAIL --wrap "module load BUSCO; cd /data/projects/p782_RNA_seq_Argania_spinosa/21_RNAseqV2/07_Busco/; busco -o Hap2 -i hap2.fasta -l embryophyta_odb10 --cpu 12 -m genome -f"
 
 
+#2b. Consolidate Busco result
+
+for GENOME in *.fasta; do PREFIX=$(basename ${GENOME/.fasta/}); cp -v run_$PREFIX/run_mammalia_odb10/full_table.tsv $PREFIX.busco5.tsv ; done
+
 #3. tidk in local
 
 
