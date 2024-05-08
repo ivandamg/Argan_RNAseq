@@ -13,10 +13,11 @@ https://github.com/slimsuite/chromsyn/blob/main/Walkthrough.md
 #2.  Busco in cluster
 
 
-    sbatch --partition=pibu_el8 --job-name=hap1Busco --time=0-10:00:00 --mem-per-cpu=50G --ntasks=12 --cpus-per-task=1 --output=BuscoHap1.out --error=BuscoHap1.error --mail-type=END,FAIL --wrap "module load BUSCO; cd /data/projects/p782_RNA_seq_Argania_spinosa/21_RNAseqV2/07_Busco/; busco -o Hap1 -i hap1.fasta -l embryophyta_odb10 --cpu 12 -m genome -f"
+    sbatch --partition=pibu_el8 --job-name=hap1Busco --time=0-10:00:00 --mem-per-cpu=50G --ntasks=12 --cpus-per-task=1 --output=BuscoHap1.out --error=BuscoHap1.error --mail-type=END,FAIL --wrap "module load BUSCO; cd /data/projects/p782_RNA_seq_Argania_spinosa/30_FinalAssemblyPaper/01_Assembly/01_hap1; busco -o /data/projects/p782_RNA_seq_Argania_spinosa/30_FinalAssemblyPaper/02_BUSCO/01_hap1/ -i Aspinosa_hap1.fa -l embryophyta_odb10 --cpu 12 -m genome -f"
 
-    sbatch --partition=pibu_el8 --job-name=hap2Busco --time=0-10:00:00 --mem-per-cpu=50G --ntasks=12 --cpus-per-task=1 --output=BuscoHap2.out --error=BuscoHap2.error --mail-type=END,FAIL --wrap "module load BUSCO; cd /data/projects/p782_RNA_seq_Argania_spinosa/21_RNAseqV2/07_Busco/; busco -o Hap2 -i hap2.fasta -l embryophyta_odb10 --cpu 12 -m genome -f"
+    sbatch --partition=pibu_el8 --job-name=hap2Busco --time=0-10:00:00 --mem-per-cpu=50G --ntasks=12 --cpus-per-task=1 --output=BuscoHap2.out --error=BuscoHap2.error --mail-type=END,FAIL --wrap "module load BUSCO; cd /data/projects/p782_RNA_seq_Argania_spinosa/30_FinalAssemblyPaper/01_Assembly/02_hap2; busco -o /data/projects/p782_RNA_seq_Argania_spinosa/30_FinalAssemblyPaper/02_BUSCO/02_hap2 -i Aspinosa_hap2.fa -l embryophyta_odb10 --cpu 12 -m genome -f"
 
+    sbatch --partition=pibu_el8 --job-name=QLODBusco --time=0-10:00:00 --mem-per-cpu=50G --ntasks=32 --cpus-per-task=1 --output=QLODBusco.out --error=QLODBusco.error --mail-type=END,FAIL --wrap "module load BUSCO; cd /data/projects/p782_RNA_seq_Argania_spinosa/21_RNAseqV2/07_Busco/QLOD/; busco -o QLOD -i Max1M_QLOD.fasta -l embryophyta_odb10 --cpu 32 -m genome -f"
 
 #2b. Consolidate Busco result
 
