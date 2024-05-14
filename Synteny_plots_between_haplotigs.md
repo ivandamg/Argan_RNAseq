@@ -32,18 +32,18 @@ https://github.com/slimsuite/chromsyn/blob/main/Walkthrough.md
 # 4. move the files into a single directory
 
 i.e example/gendata/
-├── ensDEVIL.busco5.tsv
-├── ensDEVIL.gaps.tdt
-├── ensDEVIL.telomeres.tdt
-├── ensDEVIL.tidk.csv
-├── ensMONDO.busco5.tsv
-├── ensMONDO.gaps.tdt
-├── ensMONDO.telomeres.tdt
-├── ensMONDO.tidk.csv
-├── ensPLATY.busco5.tsv
-├── ensPLATY.gaps.tdt
-├── ensPLATY.telomeres.tdt
-└── ensPLATY.tidk.csv
+─ ensDEVIL.busco5.tsv
+─ ensDEVIL.gaps.tdt
+─ ensDEVIL.telomeres.tdt
+─ ensDEVIL.tidk.csv
+─ ensMONDO.busco5.tsv
+─ ensMONDO.gaps.tdt
+─ ensMONDO.telomeres.tdt
+─ ensMONDO.tidk.csv
+─ ensPLATY.busco5.tsv
+─ ensPLATY.gaps.tdt
+─ ensPLATY.telomeres.tdt
+─ ensPLATY.tidk.csv
 
 #5. generate *.fofn
 
