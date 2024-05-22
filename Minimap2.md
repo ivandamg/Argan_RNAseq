@@ -15,3 +15,9 @@
 
                 sbatch --partition=pibu_el8 --job-name=minimapHap1 --time=0-21:00:00 --mem-per-cpu=16G --ntasks=48 --cpus-per-task=1 --output=minimapHap1.log --error=minimapHap1.err --mail-type=END,FAIL --wrap "cd /data/projects/p782_RNA_seq_Argania_spinosa/22_MapingLongReads/01_AspinosaHap1; module load minimap2; minimap2 -ax map-pb /data/projects/p782_RNA_seq_Argania_spinosa/30_FinalAssemblyPaper/02_BUSCO/01_hap1/Aspinosa_hap1.fa /data/projects/p782_RNA_seq_Argania_spinosa/20_GenomeAssembly/01_Hifi/Combined_clean.fq > Hap1.sam"
 
+
+# 3. Sort and compress
+
+                      sbatch --partition=pibu_el8 --job-name=VPSAMTOOLS --time=0-21:00:00 --mem-per-cpu=64G --ntasks=48 --cpus-per-task=1 --output=VP_SAMTOOLS.log --error=VP_SAMTOOLS.err --mail-type=END,FAIL --wrap "cd /data/projects/p782_RNA_seq_Argania_spinosa/22_MapingLongReads/02_Vparadoxa; module load SAMtools; samtools view --threads 48 -b -o Vparadoxa.bam Vparadoxa.sam; samtools sort -o Vparadoxa_sorted.bam -T Vparadoxa_temp --threads 48 Vparadoxa.bam"
+
+                      sbatch --partition=pibu_el8 --job-name=H1SAMTOOLS --time=0-21:00:00 --mem-per-cpu=64G --ntasks=48 --cpus-per-task=1 --output=Hap1_SAMTOOLS.log --error=Hap1_SAMTOOLS.err --mail-type=END,FAIL --wrap "cd /data/projects/p782_RNA_seq_Argania_spinosa/22_MapingLongReads/01_AspinosaHap1; module load SAMtools; samtools view --threads 48 -b -o Hap1.bam Hap1.sam; samtools sort -o Hap1_sorted.bam -T Hap1_temp --threads 48 Hap1.bam"
