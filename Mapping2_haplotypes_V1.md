@@ -19,7 +19,7 @@ b. build an index on the transcriptome
             
             sbatch --partition=pshort_el8 --job-name=SalmonIndex --time=0-02:00:00 --mem-per-cpu=12G --ntasks=1 --cpus-per-task=1 --output=SalmonIndexHap1.out --error=SalmonIndexHap1.error --mail-type=END,FAIL --wrap "module load Salmon; cd /data/projects/p782_RNA_seq_Argania_spinosa/30_FinalAssemblyPaper/10_RNAseq/01_Hap1; salmon index -t Aspinosa_hap1_aa.fasta -i Argan_hap1_index"
 
-         sbatch --partition=pshort_el8 --job-name=2SalmonIndex --time=0-02:00:00 --mem-per-cpu=12G --ntasks=1 --cpus-per-task=1 --output=SalmonIndexHap2.out --error=SalmonIndexHap2.error --mail-type=END,FAIL --wrap "module load Salmon; cd /data/projects/p782_RNA_seq_Argania_spinosa/30_FinalAssemblyPaper/10_RNAseq/02_Hap2; salmon index -t Aspinosa_hap2_aa.fasta -i Argan_hap1_index"
+         sbatch --partition=pshort_el8 --job-name=2SalmonIndex --time=0-02:00:00 --mem-per-cpu=12G --ntasks=1 --cpus-per-task=1 --output=SalmonIndexHap2.out --error=SalmonIndexHap2.error --mail-type=END,FAIL --wrap "module load Salmon; cd /data/projects/p782_RNA_seq_Argania_spinosa/30_FinalAssemblyPaper/10_RNAseq/02_Hap2; salmon index -t Aspinosa_hap2_aa.fasta -i Argan_hap2_index"
 
 c. Quantify the samples
 
