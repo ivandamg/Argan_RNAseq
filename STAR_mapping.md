@@ -1,10 +1,14 @@
 # Pipeline for read mapping with STAR
 
+1. Clean reads with fastp
 
-a. Index reference hap1 and hap2
+  for FILE in $(ls *1.fastq.gz); do echo $FILE; sbatch --partition=pshort_el8 --job-name=$(echo $FILE | cut -d'_' -f1)fastp --time=0-02:00:00 --mem-per-cpu=24G --ntasks=1 --cpus-per-task=1 --output=$(echo $FILE | cut -d'_' -f1)_fastp.out --error=$(echo $FILE | cut -d'_' -f1)_fastp.error --mail-type=END,FAIL --wrap " cd /data/projects/p782_RNA_seq_Argania_spinosa/21_RNAseqV2/00_rawreads ; module load FastQC; ~/00_Software/fastp --in1 $FILE --in2 $(echo $FILE | cut -d'_' -f1)_2.fastq.gz --out1 ../02_TrimmedData/$(echo $FILE | cut -d'_' -f1)_1_trimmed.fastq.gz --out2 ../02_TrimmedData/$(echo $FILE | cut -d'_' -f1)_2_trimmed.fastq.gz -h ../02_TrimmedData/$(echo $FILE | cut -d',' -f1)_fastp.html --thread 4; fastqc -t 4 ../02_TrimmedData/$(echo $FILE | cut -d'_' -f1)_1_trimmed.fastq.gz; fastqc -t 4 ../02_TrimmedData/$(echo $FILE | cut -d'_' -f1)_2_trimmed.fastq.gz"; sleep  1; done
 
-              sbatch --partition=pshort_el8 --job-name=StarIndex --time=0-01:00:00 --mem-per-cpu=64G --ntasks=1 --cpus-per-task=1 --output=StarIndex.out --error=StarIndex.error --mail-type=END,FAIL --wrap "cd /data/projects/p782_RNA_seq_Argania_spinosa/21_RNAseqV2/03_haplotype1/00_ref; module load STAR/2.7.10a_alpha_220601-GCC-10.3.0; STAR --runThreadN 1 --runMode genomeGenerate --genomeDir /data/projects/p782_RNA_seq_Argania_spinosa/21_RNAseqV2/03_haplotype1/00_ref --genomeFastaFiles hap1_masked.fasta --sjdbGTFfile Argania_spinosa_DR.gff3 --sjdbOverhang 99 --genomeSAindexNbases 10"
-              sbatch --partition=pshort_el8 --job-name=StarIndex2 --time=0-01:00:00 --mem-per-cpu=64G --ntasks=1 --cpus-per-task=1 --output=StarIndex2.out --error=StarIndex2.error --mail-type=END,FAIL --wrap "cd /data/projects/p782_RNA_seq_Argania_spinosa/21_RNAseqV2/04_haplotype2/00_ref; module load STAR/2.7.10a_alpha_220601-GCC-10.3.0; STAR --runThreadN 1 --runMode genomeGenerate --genomeDir /data/projects/p782_RNA_seq_Argania_spinosa/21_RNAseqV2/04_haplotype2/00_ref --genomeFastaFiles hap2_masked.fasta --sjdbGTFfile Argania_spinosa_DR.gff3 --sjdbOverhang 99 --genomeSAindexNbases 10"
+
+2. Index reference hap1 and hap2
+
+              sbatch --partition=pshort_el8 --job-name=StarIndex --time=0-01:00:00 --mem-per-cpu=64G --ntasks=1 --cpus-per-task=1 --output=StarIndex.out --error=StarIndex.error --mail-type=END,FAIL --wrap "cd /data/projects/p782_RNA_seq_Argania_spinosa/21_RNAseqV2/03_haplotype1/00_ref; module load STAR/2.7.10a_alpha_220601-GCC-10.3.0; STAR --runThreadN 1 --runMode genomeGenerate --genomeDir /data/projects/p782_RNA_seq_Argania_spinosa/21_RNAseqV2/03_haplotype1/00_ref --genomeFastaFiles Aspinosa_hap1.fa --sjdbGTFfile Aspinosa_hap1.gff3 --sjdbOverhang 99 --genomeSAindexNbases 10"
+              sbatch --partition=pshort_el8 --job-name=StarIndex2 --time=0-01:00:00 --mem-per-cpu=64G --ntasks=1 --cpus-per-task=1 --output=StarIndex2.out --error=StarIndex2.error --mail-type=END,FAIL --wrap "cd /data/projects/p782_RNA_seq_Argania_spinosa/21_RNAseqV2/04_haplotype2/00_ref; module load STAR/2.7.10a_alpha_220601-GCC-10.3.0; STAR --runThreadN 1 --runMode genomeGenerate --genomeDir /data/projects/p782_RNA_seq_Argania_spinosa/21_RNAseqV2/04_haplotype2/00_ref --genomeFastaFiles Aspinosa_hap2.fa --sjdbGTFfile Aspinosa_hap2.gff3 --sjdbOverhang 99 --genomeSAindexNbases 10"
 
 ### b. Map reads
 
