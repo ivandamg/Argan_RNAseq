@@ -21,7 +21,7 @@
         ~/ZZ_Software/seqkit grep -f B_inorder.txt Sspinosum_hap1.fa -o B_inorder.faa
 
 ### 5. Blast each sequence of A into all B. select only the first hit.
-columns output: qseqid sseqid pident length qlen slen qstart qend sstart send evalue bitscore
+columns output: qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore
 
 
-blastp -query A_inorder.faa -subject B_inorder.faa -outfmt 6 -max_target_seqs 1 -num_threads 8 -out blast_pairwise_results.tsv
+                blastp -query A_inorder.faa -subject B_inorder.faa -outfmt 6 -max_target_seqs 1 -num_threads 8 -out blast_pairwise_results.tsv
