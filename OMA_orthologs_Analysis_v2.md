@@ -25,3 +25,18 @@ columns output: qseqid sseqid pident length mismatch gapopen qstart qend sstart 
 
 
                 blastp -query A_inorder.faa -subject B_inorder.faa -outfmt 6 -max_target_seqs 1 -num_threads 8 -out blast_pairwise_results.tsv
+
+
+### 6. Plot and identify in R orthologs that have sequence divergence
+
+
+### 7. merge hap 1 and hap2
+
+### 8. Map reads with STAR 2 passes
+
+
+### 9. Count reads with feature counts
+
+
+### 10 . DEseq with R
+
