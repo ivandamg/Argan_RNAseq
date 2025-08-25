@@ -21,7 +21,7 @@ copy Annotation into 00_References/hap folder
          cat ../Hap1/Sspinosum_hap1.gtf | sed 's/Chr/Hap1_Chr/g'| sed 's/scaf/Hap1_scaf/g' > Merged_Sspinosum.gtf 
          cat ../Hap2/Sspinosum_hap2.gtf | sed 's/Chr/Hap2_Chr/g'| sed 's/scaf/Hap2_scaf/g' >> Merged_Sspinosum.gtf
              # Index
-             sbatch --partition=pshort_el8 --job-name=IndexHap1 --time=0-01:00:00 --mem-per-cpu=64G --ntasks=1 --cpus-per-task=1 --output=Hap1Index.out --error=Hap1Index.error --mail-type=END,FAIL --wrap "cd /data/projects/p782_RNA_seq_Argania_spinosa/500_RNAseqV3/00_References/Merged; module load STAR/2.7.10a_alpha_220601-GCC-10.3.0; STAR --runThreadN 1 --runMode genomeGenerate --genomeDir /data/projects/p782_RNA_seq_Argania_spinosa/500_RNAseqV3/00_References/Merged --genomeFastaFiles Merged_Sspinosum.fa --sjdbGTFfile Merged_Sspinosum.gtf --sjdbGTFfeatureExon CDS --sjdbOverhang 99"
+             sbatch --partition=pibu_el8 --job-name=IndexHap1 --time=0-03:00:00 --mem-per-cpu=64G --ntasks=1 --cpus-per-task=1 --output=Hap1Index.out --error=Hap1Index.error --mail-type=END,FAIL --wrap "cd /data/projects/p782_RNA_seq_Argania_spinosa/500_RNAseqV3/00_References/Merged; module load STAR/2.7.10a_alpha_220601-GCC-10.3.0; STAR --runThreadN 1 --runMode genomeGenerate --genomeDir /data/projects/p782_RNA_seq_Argania_spinosa/500_RNAseqV3/00_References/Merged --genomeFastaFiles Merged_Sspinosum.fa --sjdbGTFfile Merged_Sspinosum.gtf --sjdbGTFfeatureExon CDS --sjdbOverhang 99"
 
 
 
