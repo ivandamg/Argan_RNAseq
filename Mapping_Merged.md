@@ -12,18 +12,17 @@
 # 2. Index transcriptome Hap1 and Hap2 independently
 copy Annotation into 00_References/hap folder
 
-         mkdir ../00_References
-         mkdir ../00_References/Hap1
-         mkdir ../00_References/Hap2
 
+         mkdir ../00_References/Merged
+         #Genome Assembly
+         cat ../Hap1/S_spinosum_hap1.fa | sed 's/>/>Hap1_/g' > Merged_Sspinosum.fa
+         cat ../Hap2/S_spinosum_hap2.fa | sed 's/>/>Hap2_/g' >> Merged_Sspinosum.fa
+         # Annotation gtf
+         cat ../Hap1/Sspinosum_hap1.gtf | sed 's/Chr/Hap1_Chr/g'| sed 's/scaf/Hap1_scaf/g' > Merged_Sspinosum.gtf 
+         cat ../Hap2/Sspinosum_hap2.gtf | sed 's/Chr/Hap2_Chr/g'| sed 's/scaf/Hap2_scaf/g' >> Merged_Sspinosum.gtf
+             # Index
+             sbatch --partition=pshort_el8 --job-name=IndexHap1 --time=0-01:00:00 --mem-per-cpu=64G --ntasks=1 --cpus-per-task=1 --output=Hap1Index.out --error=Hap1Index.error --mail-type=END,FAIL --wrap "cd /data/projects/p782_RNA_seq_Argania_spinosa/500_RNAseqV3/00_References/Merged; module load STAR/2.7.10a_alpha_220601-GCC-10.3.0; STAR --runThreadN 1 --runMode genomeGenerate --genomeDir /data/projects/p782_RNA_seq_Argania_spinosa/500_RNAseqV3/00_References/Merged --genomeFastaFiles Merged_Sspinosum.fa --sjdbGTFfile Merged_Sspinosum.gtf --sjdbGTFfeatureExon CDS --sjdbOverhang 99"
 
-## 1. Hap1
-    
-             sbatch --partition=pshort_el8 --job-name=IndexHap1 --time=0-01:00:00 --mem-per-cpu=64G --ntasks=1 --cpus-per-task=1 --output=Hap1Index.out --error=Hap1Index.error --mail-type=END,FAIL --wrap "cd /data/projects/p782_RNA_seq_Argania_spinosa/500_RNAseqV3/00_References/Hap1; module load STAR/2.7.10a_alpha_220601-GCC-10.3.0; STAR --runThreadN 1 --runMode genomeGenerate --genomeDir /data/projects/p782_RNA_seq_Argania_spinosa/500_RNAseqV3/00_References/Hap1 --genomeFastaFiles S_spinosum_hap1.fa --sjdbGTFfile Sspinosum_hap1.gtf --sjdbGTFfeatureExon CDS --sjdbOverhang 99"
-
-## 2. Hap2
-    
-             sbatch --partition=pshort_el8 --job-name=IndexHap2 --time=0-01:00:00 --mem-per-cpu=64G --ntasks=1 --cpus-per-task=1 --output=Hap2Index.out --error=Hap2Index.error --mail-type=END,FAIL --wrap "cd /data/projects/p782_RNA_seq_Argania_spinosa/500_RNAseqV3/00_References/Hap2; module load STAR/2.7.10a_alpha_220601-GCC-10.3.0; STAR --runThreadN 1 --runMode genomeGenerate --genomeDir /data/projects/p782_RNA_seq_Argania_spinosa/500_RNAseqV3/00_References/Hap2 --genomeFastaFiles S_spinosum_hap2.fa --sjdbGTFfile Sspinosum_hap2.gtf --sjdbGTFfeatureExon CDS --sjdbOverhang 99"
 
 
 # 3. Map reads 
@@ -31,13 +30,10 @@ copy Annotation into 00_References/hap folder
 
 ## 1. Hap1
 
-       mkdir ../03_Mapped/
+        mkdir ../13_MappedMixed/
        
        for FILE in $(ls *_1_trimmed.fastq.gz ); do echo $FILE; sbatch --partition=pibu_el8 --job-name=$(echo $FILE | cut -d'_' -f1)_1STAR --time=1-12:00:00 --mem-per-cpu=128G --ntasks=8 --cpus-per-task=1 --output=$(echo $FILE | cut -d'_' -f1)_STAR.out --error=$(echo $FILE | cut -d'_' -f1)_STAR.error --mail-type=END,FAIL --wrap "module load STAR/2.7.10a_alpha_220601-GCC-10.3.0; cd /data/projects/p782_RNA_seq_Argania_spinosa/500_RNAseqV3/02_TrimmedData; STAR --runThreadN 8 --genomeDir /data/projects/p782_RNA_seq_Argania_spinosa/500_RNAseqV3/00_References/Hap1 --readFilesIn $FILE $(echo $FILE | cut -d'_' -f1)_2_trimmed.fastq.gz --readFilesCommand zcat --outFileNamePrefix $(echo $FILE | cut -d'_' -f1)_Hap1_ --outSAMtype BAM SortedByCoordinate --outReadsUnmapped Fastx"; sleep  1; done
 
-## 1. Hap2
-       
-       for FILE in $(ls *_1_trimmed.fastq.gz ); do echo $FILE; sbatch --partition=pibu_el8 --job-name=$(echo $FILE | cut -d'_' -f1)_1STAR --time=1-12:00:00 --mem-per-cpu=128G --ntasks=8 --cpus-per-task=1 --output=$(echo $FILE | cut -d'_' -f1)_STAR.out --error=$(echo $FILE | cut -d'_' -f1)_STAR.error --mail-type=END,FAIL --wrap "module load STAR/2.7.10a_alpha_220601-GCC-10.3.0; cd /data/projects/p782_RNA_seq_Argania_spinosa/500_RNAseqV3/02_TrimmedData; STAR --runThreadN 8 --genomeDir /data/projects/p782_RNA_seq_Argania_spinosa/500_RNAseqV3/00_References/Hap2 --readFilesIn $FILE $(echo $FILE | cut -d'_' -f1)_2_trimmed.fastq.gz --readFilesCommand zcat --outFileNamePrefix $(echo $FILE | cut -d'_' -f1)_Hap2_ --outSAMtype BAM SortedByCoordinate --outReadsUnmapped Fastx"; sleep  1; done
 
 
 # 3. Create the SJ.out.tab by filtering and merging SJ.out.tab files from all runs
