@@ -32,23 +32,16 @@ copy Annotation into 00_References/hap folder
 
         mkdir ../13_MappedMixed/
        
-       for FILE in $(ls *_1_trimmed.fastq.gz ); do echo $FILE; sbatch --partition=pibu_el8 --job-name=$(echo $FILE | cut -d'_' -f1)_1STAR --time=1-12:00:00 --mem-per-cpu=128G --ntasks=8 --cpus-per-task=1 --output=$(echo $FILE | cut -d'_' -f1)_STAR.out --error=$(echo $FILE | cut -d'_' -f1)_STAR.error --mail-type=END,FAIL --wrap "module load STAR/2.7.10a_alpha_220601-GCC-10.3.0; cd /data/projects/p782_RNA_seq_Argania_spinosa/500_RNAseqV3/02_TrimmedData; STAR --runThreadN 8 --genomeDir /data/projects/p782_RNA_seq_Argania_spinosa/500_RNAseqV3/00_References/Hap1 --readFilesIn $FILE $(echo $FILE | cut -d'_' -f1)_2_trimmed.fastq.gz --readFilesCommand zcat --outFileNamePrefix $(echo $FILE | cut -d'_' -f1)_Hap1_ --outSAMtype BAM SortedByCoordinate --outReadsUnmapped Fastx"; sleep  1; done
+       for FILE in $(ls *_1_trimmed.fastq.gz ); do echo $FILE; sbatch --partition=pibu_el8 --job-name=$(echo $FILE | cut -d'_' -f1)_1STAR --time=1-12:00:00 --mem-per-cpu=128G --ntasks=8 --cpus-per-task=1 --output=$(echo $FILE | cut -d'_' -f1)_STAR.out --error=$(echo $FILE | cut -d'_' -f1)_STAR.error --mail-type=END,FAIL --wrap "module load STAR/2.7.10a_alpha_220601-GCC-10.3.0; cd /data/projects/p782_RNA_seq_Argania_spinosa/500_RNAseqV3/02_TrimmedData; STAR --runThreadN 8 --genomeDir /data/projects/p782_RNA_seq_Argania_spinosa/500_RNAseqV3/00_References/Hap1 --readFilesIn $FILE $(echo $FILE | cut -d'_' -f1)_2_trimmed.fastq.gz --readFilesCommand zcat --outFileNamePrefix $(echo $FILE | cut -d'_' -f1)_Merged_ --outSAMtype BAM SortedByCoordinate --outReadsUnmapped Fastx"; sleep  1; done
 
 
 
 # 3. Create the SJ.out.tab by filtering and merging SJ.out.tab files from all runs
 
-## 1. Hap1
     
-    mkdir 2ndPass #(do not create this folder in the folder "RNAseq")
-    echo "" > Global.SJ.out.tab.Pass2.sjdb
-    for i in $(ls *Hap1_SJ.out.tab); do echo $i; awk 'BEGIN {OFS="\t"; strChar[0]="."; strChar[1]="+"; strChar[2]="-";} {if($5>0){print $1,$2,$3,strChar[$4]}}' $i >> /data/projects/p782_RNA_seq_Argania_spinosa/500_RNAseqV3/00_References/Hap1/2ndPass/Global.SJ.out.tab.Pass2.sjdb ; done
-
-## 2. Hap2
-    
-    mkdir 2ndPass #(do not create this folder in the folder "RNAseq")
-    echo "" > Global.SJ.out.tab.Pass2.sjdb
-    for i in $(ls *Hap2_SJ.out.tab); do echo $i; awk 'BEGIN {OFS="\t"; strChar[0]="."; strChar[1]="+"; strChar[2]="-";} {if($5>0){print $1,$2,$3,strChar[$4]}}' $i >> /data/projects/p782_RNA_seq_Argania_spinosa/500_RNAseqV3/00_References/Hap2/2ndPass/Global.SJ.out.tab.Pass2.sjdb ; done
+    mkdir Merged_2ndPass #(do not create this folder in the folder "RNAseq")
+    echo "" > Merged_2ndPass/Global.SJ.out.tab.Pass2.sjdb
+    for i in $(ls *Merged_SJ.out.tab); do echo $i; awk 'BEGIN {OFS="\t"; strChar[0]="."; strChar[1]="+"; strChar[2]="-";} {if($5>0){print $1,$2,$3,strChar[$4]}}' $i >> /data/projects/p782_RNA_seq_Argania_spinosa/500_RNAseqV3/00_References/Merged/Merged_2ndPass/Global.SJ.out.tab.Pass2.sjdb ; done
 
 # 4. Remove bam and unmapped reads
 
