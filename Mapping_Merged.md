@@ -54,11 +54,7 @@ copy the genome and gtf file into 2nd pass folder
 
 ## 1. Hap1
     
-             sbatch --partition=pshort_el8 --job-name=IndexHap1 --time=0-01:00:00 --mem-per-cpu=64G --ntasks=1 --cpus-per-task=1 --output=Hap1Index.out --error=Hap1Index.error --mail-type=END,FAIL --wrap "cd /data/projects/p782_RNA_seq_Argania_spinosa/500_RNAseqV3/00_References/Hap1/2ndPass; module load STAR/2.7.10a_alpha_220601-GCC-10.3.0; STAR --runThreadN 1 --runMode genomeGenerate --genomeDir /data/projects/p782_RNA_seq_Argania_spinosa/500_RNAseqV3/00_References/Hap1/2ndPass --genomeFastaFiles S_spinosum_hap1.fa --sjdbGTFfile Sspinosum_hap1.gtf --sjdbGTFfeatureExon CDS --sjdbOverhang 99 --sjdbFileChrStartEnd Global.SJ.out.tab.Pass2.sjdb"
-
-## 2. Hap2
-    
-             sbatch --partition=pshort_el8 --job-name=IndexHap2 --time=0-01:00:00 --mem-per-cpu=64G --ntasks=1 --cpus-per-task=1 --output=Hap2Index.out --error=Hap2Index.error --mail-type=END,FAIL --wrap "cd /data/projects/p782_RNA_seq_Argania_spinosa/500_RNAseqV3/00_References/Hap2/2ndPass; module load STAR/2.7.10a_alpha_220601-GCC-10.3.0; STAR --runThreadN 1 --runMode genomeGenerate --genomeDir /data/projects/p782_RNA_seq_Argania_spinosa/500_RNAseqV3/00_References/Hap2/2ndPass --genomeFastaFiles S_spinosum_hap2.fa --sjdbGTFfile Sspinosum_hap2.gtf --sjdbGTFfeatureExon CDS --sjdbOverhang 99 --sjdbFileChrStartEnd Global.SJ.out.tab.Pass2.sjdb"
+             sbatch --partition=pibu_el8 --job-name=Index --time=0-03:00:00 --mem-per-cpu=64G --ntasks=1 --cpus-per-task=1 --output=Index.out --error=Index.error --mail-type=END,FAIL --wrap "cd /data/projects/p782_RNA_seq_Argania_spinosa/500_RNAseqV3/00_References/Merged/Merged_2ndPass/; module load STAR/2.7.10a_alpha_220601-GCC-10.3.0; STAR --runThreadN 1 --runMode genomeGenerate --genomeDir /data/projects/p782_RNA_seq_Argania_spinosa/500_RNAseqV3/00_References/Merged/Merged_2ndPass/ --genomeFastaFiles Merged_Sspinosum.fa --sjdbGTFfile Merged_Sspinosum.gtf --sjdbGTFfeatureExon CDS --sjdbOverhang 99 --sjdbFileChrStartEnd Global.SJ.out.tab.Pass2.sjdb"
 
 
 
