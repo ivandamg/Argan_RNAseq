@@ -1,0 +1,1988 @@
+---
+title: "RNAseq Argan v2"
+author: "Ivan D. Mateus"
+date: "25 Mai 2025"
+output: 
+  html_document:
+    anchor_sections: true
+    toc: true
+    toc_float: true
+    theme: united
+    highlight: null
+    mathjax: null
+    self_contained: true
+    code_folding: show
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+library(readxl)
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+library(edgeR)
+library(DESeq2)
+library(pheatmap)
+library(VennDiagram)
+library(eulerr)
+library(EnhancedVolcano)
+library(topGO)
+library(Rgraphviz)
+library(GenomicAlignments) # For reading BAM files
+library(GenomicFeatures)   # For processing GTF files
+library(Gviz)              # For visualization
+library(GenomicRanges)
+library(RColorBrewer)
+options(scipen=999)
+```
+
+
+
+
+
+# 1. Analysis on only first isoform
+
+### Loading Count Data, Analysis on first Isoform
+
+The raw gene count data is read from a tab-delimited file. The first five annotation columns are removed, and the column names are cleaned to extract meaningful sample identifiers.
+
+```{r 1, echo=T}
+
+counts <- read.delim("/Users/im/Documents/UniFR/2024_FRIBURG2/03_2024_RNAseqDrought/01_FeatureCounts/FC_Hap1_ALL.txt", comment.char="#", row.names=1)
+counts <- counts[ , -(1:5)]  # Remove annotation columns
+colnames(counts) <- lapply(strsplit(colnames(counts),split = "_"), function (x) c(x[[1]]))
+
+# Select only first isoform
+counts<-counts[grep("t1",rownames(counts)),]
+```
+
+### Creating Sample Metadata
+
+A coldata data frame is created to store information about each sample, particularly the experimental condition, which is crucial for the differential expression analysis.
+
+```{r 2, echo=T}
+
+coldata <- data.frame(
+  row.names = colnames(counts),
+  Myco = c(rep("AMF",6),rep("NoAMF",6)),
+  Irrigation=c(rep("80FC",3),rep("20FC",3),rep("80FC",3),rep("20FC",3) )
+  )
+#Interaction=paste(c(rep("AMF",6),rep("NoAMF",6)),c(rep("80FC",3),rep("20FC",3),rep("80FC",3),rep("20FC",3) ),sep="_")
+# 1. Convert to factors and set biological controls as the reference levels
+coldata$Myco <- relevel(factor(coldata$Myco), ref = "NoAMF")
+coldata$Irrigation <- relevel(factor(coldata$Irrigation), ref = "80FC")
+
+```
+# 2. DESeq2 Analysis
+
+This section details the core DESeq2 analysis steps, including object creation, filtering, and running the differential expression pipeline.
+Creating DESeq2 Object
+
+The DESeqDataSetFromMatrix function combines the count data and sample metadata into a DESeq2 object, specifying the design formula for the analysis.
+
+```{r 3, echo=T}
+
+dds <- DESeqDataSetFromMatrix(countData = counts, colData = coldata, design = ~ Myco*Irrigation)
+
+## Filtering Low Counts
+dds <- dds[rowSums(counts(dds)) > 10, ]
+
+```
+## Running DESeq2
+
+The DESeq function performs the core differential expression analysis, including normalization, dispersion estimation, and negative binomial GLM fitting.
+
+```{r 4, echo=T}
+
+dds <- DESeq(dds)
+
+res <- results(dds)
+# res <- lfcShrink(dds, coef="condition_treated_vs_control", type="apeglm") # Example of LFC shrinkage
+```
+## Heatmap of Variance-Stabilized Transformed Counts
+
+A heatmap of variance-stabilized transformed (VST) counts helps visualize the overall expression patterns and relationships between samples. Genes are scaled by row (Z-score) for better comparison.
+
+```{r 5, echo=T}
+
+vsd <- vst(dds, blind = FALSE)
+vsd_mat <- assay(vsd)
+pheatmap(vsd_mat,
+         scale = "row",           # Z-score per gene
+         show_rownames = FALSE,   # Hide gene names for clarity
+         annotation_col = coldata)
+```
+## Principal Component Analysis (PCA)
+
+PCA is used to visualize the relationships between samples based on their gene expression profiles. It helps to assess the overall clustering of samples by experimental condition.
+
+```{r 6, echo=T}
+
+plotPCA(vsd, intgroup = c("Myco","Irrigation") )
+```
+
+
+
+
+# 3. Contrast Drought effect
+
+## 1. Drought effect at NoAMF
+The result is the log2 fold change of 80FC vs. 20FC within the NoAMF samples.
+
+
+```{r 12, echo=T}
+
+res_Irrigation_in_NoAMF <- results(dds, name="Irrigation_20FC_vs_80FC")
+res_Irrigation_in_NoAMF[order(res_Irrigation_in_NoAMF$padj), ]
+sig_Irrigation_in_NoAMF <- subset(res_Irrigation_in_NoAMF, padj < 0.05 )
+
+EnhancedVolcano(res_Irrigation_in_NoAMF,
+                lab = rownames(res_Irrigation_in_NoAMF),
+                x = 'log2FoldChange',
+                y = 'padj',
+                pCutoff = 0.05,
+                FCcutoff = 2,
+                title = 'Irrigation effect when no AMF',
+                subtitle = '',
+                caption = 'Log2FC vs adjusted p-value',
+                legendPosition = 'right')
+
+# Viz by FC
+df <- as.data.frame(subset(res_Irrigation_in_NoAMF, padj < 0.05))
+
+
+direction <- ifelse(df$log2FoldChange > 0, "Upregulated", "Downregulated")
+abs_fc <- abs(df$log2FoldChange)
+
+category <- ifelse(abs_fc >= 0 & abs_fc < 2, "0–2", ifelse(abs_fc >= 2 & abs_fc < 4, "2–4",
+             ifelse(abs_fc >= 4 & abs_fc < 6, "4–6",
+             ifelse(abs_fc >= 6, "6+", NA))))
+
+df_summary <- as.data.frame(table(direction, category))
+df_summary <- df_summary[!is.na(df_summary$category), ]
+colnames(df_summary) <- c("direction", "category", "n")
+df_summary
+
+df_summary_signed <- df_summary %>%
+  mutate(n = ifelse(direction == "Downregulated", -n, n))
+
+ggplot(df_summary_signed, aes(x = category, y = n, fill = direction)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = c("Upregulated" = "#1f78b4", "Downregulated" = "#e31a1c")) +
+  labs(
+    x = "log2 Fold Change category",
+    y = "Number of genes",
+    fill = "",
+    title = "Up- vs Down-regulated genes by Fold Change"
+  ) +
+  theme_minimal(base_size = 14)
+#top 5 %
+# 1. Identify the top 5% threshold for padj
+# We use quantile to find the value that marks the bottom 5% of p-values
+threshold <- quantile(res_Irrigation_in_NoAMF$padj, probs = 0.002, na.rm = TRUE)
+
+# 2. Filter the results to get the gene IDs
+top_genes_indices <- which(res_Irrigation_in_NoAMF$padj <= threshold)
+top_genes_ids <- rownames(res_Irrigation_in_NoAMF)[top_genes_indices]
+
+# 3. Subset your expression matrix using these IDs
+plot_mat <- vsd_mat[top_genes_ids, ]
+
+# 4. Generate the heatmap
+# We scale by 'row' so the colors represent changes relative to the gene's average
+pheatmap(plot_mat, 
+         scale = "row", 
+         show_colnames = TRUE, 
+         show_rownames = TRUE, # Hide if there are too many genes to read
+         main = "Top 0.2% Significant Genes (by padj)",
+         clustering_distance_rows = "correlation")
+```
+
+
+
+
+## 2. Drought effect accross mycorrhizal samples 
+
+```{r 13, echo=T}
+
+res_Irrigation_in_AMF <- results(dds, contrast=list(c("Irrigation_20FC_vs_80FC", "MycoAMF.Irrigation20FC")))
+res_Irrigation_in_AMF[order(res_Irrigation_in_AMF$padj), ]
+sig_Irrigation_in_AMF  <- subset(res_Irrigation_in_AMF,  padj < 0.05)
+EnhancedVolcano(res_Irrigation_in_AMF,
+                lab = rownames(res_Irrigation_in_AMF),
+                x = 'log2FoldChange',
+                y = 'padj',
+                pCutoff = 0.05,
+                FCcutoff = 2,
+                title = 'Irregation effect when AMF present',
+                subtitle = '',
+                caption = 'Log2FC vs adjusted p-value',
+                legendPosition = 'right')
+
+# Viz by FC
+df <- as.data.frame(subset(res_Irrigation_in_AMF, padj < 0.05))
+
+
+direction <- ifelse(df$log2FoldChange > 0, "Upregulated", "Downregulated")
+abs_fc <- abs(df$log2FoldChange)
+
+category <- ifelse(abs_fc >= 0 & abs_fc < 2, "0–2", ifelse(abs_fc >= 2 & abs_fc < 4, "2–4",
+             ifelse(abs_fc >= 4 & abs_fc < 6, "4–6",
+             ifelse(abs_fc >= 6, "6+", NA))))
+
+df_summary <- as.data.frame(table(direction, category))
+df_summary <- df_summary[!is.na(df_summary$category), ]
+colnames(df_summary) <- c("direction", "category", "n")
+df_summary
+
+df_summary_signed <- df_summary %>%
+  mutate(n = ifelse(direction == "Downregulated", -n, n))
+
+ggplot(df_summary_signed, aes(x = category, y = n, fill = direction)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = c("Upregulated" = "#1f78b4", "Downregulated" = "#e31a1c")) +
+  labs(
+    x = "log2 Fold Change category",
+    y = "Number of genes",
+    fill = "",
+    title = "Up- vs Down-regulated genes by Fold Change"
+  ) +
+  theme_minimal(base_size = 14)
+
+
+```
+
+## 3. Venn Diagram of Drought effect
+
+```{r 14, echo=T}
+
+genes_Irrigation_at_NoAMF <- rownames(sig_Irrigation_in_NoAMF)
+genes_Irrigation_at_AMF  <- rownames(sig_Irrigation_in_AMF)
+
+#Creating Gene List for Venn Diagram
+
+gene_list <- list(
+  NoAMF = genes_Irrigation_at_NoAMF,
+  AMF= genes_Irrigation_at_AMF)
+
+fit <- euler(gene_list)
+
+plot(fit,
+     fills = list(fill = c("skyblue", "salmon"), alpha = 0.6),
+     labels = list(font = 2),
+     edges = TRUE,
+     quantities = TRUE)
+```
+
+
+### Identifying Common and Unique Genes
+
+Further breakdown of the overlap to identify genes common to all comparisons, common to pairs, and unique to each comparison.
+
+
+```{r 15, echo=T}
+
+### Common to all three
+common_Irrigation <- Reduce(intersect, list(genes_Irrigation_at_NoAMF, genes_Irrigation_at_AMF))
+
+### Unique to each
+unique_Irrigation_AMF <- setdiff(genes_Irrigation_at_AMF, genes_Irrigation_at_NoAMF)
+unique_Irrigation_NoAMF <- setdiff(genes_Irrigation_at_NoAMF, genes_Irrigation_at_AMF)
+
+
+```
+
+
+
+### Produce Tables Unique and commmon
+
+```{r 16, echo=T}
+
+
+write.table(vsd_mat[rownames(vsd_mat) %in% common_Irrigation ,]
+, "/Users/im/Documents/UniFR/2024_FRIBURG2/03_2024_RNAseqDrought/Results/Venn_Commmon_Irrigation_TransformedCount.tsv",quote = F,sep = "\t") 
+write.table(vsd_mat[rownames(vsd_mat) %in% unique_Irrigation_AMF ,]
+, "/Users/im/Documents/UniFR/2024_FRIBURG2/03_2024_RNAseqDrought/Results/Venn_Unique_Irrigation_AMF_TransformedCount.tsv",quote = F,sep = "\t") 
+write.table(vsd_mat[rownames(vsd_mat) %in% unique_Irrigation_NoAMF,]
+, "/Users/im/Documents/UniFR/2024_FRIBURG2/03_2024_RNAseqDrought/Results/Venn_Commmon_Irrigation_NoAMF_TransformedCount.tsv",quote = F,sep = "\t") 
+
+
+```
+
+
+# 4. Contrasts Mycorrhizal effect
+
+## 2. Mycorrhizal effect at well watered plants 80FC
+The result is the log2 fold change of NoAMF vs. AMF at the 80FC level. The oposite as before
+
+```{r 8, echo=T}
+
+res_AMF_at_80FC <- results(dds, name="Myco_AMF_vs_NoAMF")
+res_AMF_at_80FC[order(res_AMF_at_80FC$padj), ]
+sig_AMF_at_80FC <- subset(res_AMF_at_80FC, padj < 0.05 )
+
+EnhancedVolcano(res_AMF_at_80FC,
+                lab = rownames(res_AMF_at_80FC),
+                x = 'log2FoldChange',
+                y = 'padj',
+                pCutoff = 0.05,
+                FCcutoff = 2,
+                title = 'Mycorrhizal effect at 80FC irrigation',
+                subtitle = '',
+                caption = 'Log2FC vs adjusted p-value',
+                legendPosition = 'right')
+# Viz by FC
+df <- as.data.frame(subset(res_AMF_at_80FC, padj < 0.05))
+
+
+direction <- ifelse(df$log2FoldChange > 0, "Upregulated", "Downregulated")
+abs_fc <- abs(df$log2FoldChange)
+
+category <- ifelse(abs_fc >= 0 & abs_fc < 2, "0–2", ifelse(abs_fc >= 2 & abs_fc < 4, "2–4",
+             ifelse(abs_fc >= 4 & abs_fc < 6, "4–6",
+             ifelse(abs_fc >= 6, "6+", NA))))
+
+df_summary <- as.data.frame(table(direction, category))
+df_summary <- df_summary[!is.na(df_summary$category), ]
+colnames(df_summary) <- c("direction", "category", "n")
+df_summary
+
+df_summary_signed <- df_summary %>%
+  mutate(n = ifelse(direction == "Downregulated", -n, n))
+
+ggplot(df_summary_signed, aes(x = category, y = n, fill = direction)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = c("Upregulated" = "#1f78b4", "Downregulated" = "#e31a1c")) +
+  labs(
+    x = "log2 Fold Change category",
+    y = "Number of genes",
+    fill = "",
+    title = "Up- vs Down-regulated genes by Fold Change"
+  ) +
+  theme_minimal(base_size = 14)
+```
+
+## 3. Mycorrhizal effect at Drought  20FC
+
+```{r 7, echo=T}
+
+res_AMF_at_20FC <- results(dds, contrast=list(c("Myco_AMF_vs_NoAMF", "MycoAMF.Irrigation20FC")))
+res_AMF_at_20FC[order(res_AMF_at_20FC$padj), ]
+sig_AMF_at_20FC <- subset(res_AMF_at_20FC, padj < 0.05 )
+
+EnhancedVolcano(res_AMF_at_20FC,
+                lab = rownames(res_AMF_at_20FC),
+                x = 'log2FoldChange',
+                y = 'padj',
+                pCutoff = 0.05,
+                FCcutoff = 2,
+                title = 'Mycorrhizal effect at 20FC irrigation',
+                subtitle = '',
+                caption = 'Log2FC vs adjusted p-value',
+                legendPosition = 'right')
+# Viz by FC
+df <- as.data.frame(subset(res_AMF_at_20FC, padj < 0.05))
+
+
+direction <- ifelse(df$log2FoldChange > 0, "Upregulated", "Downregulated")
+abs_fc <- abs(df$log2FoldChange)
+
+category <- ifelse(abs_fc >= 0 & abs_fc < 2, "0–2", ifelse(abs_fc >= 2 & abs_fc < 4, "2–4",
+             ifelse(abs_fc >= 4 & abs_fc < 6, "4–6",
+             ifelse(abs_fc >= 6, "6+", NA))))
+
+df_summary <- as.data.frame(table(direction, category))
+df_summary <- df_summary[!is.na(df_summary$category), ]
+colnames(df_summary) <- c("direction", "category", "n")
+df_summary
+
+df_summary_signed <- df_summary %>%
+  mutate(n = ifelse(direction == "Downregulated", -n, n))
+
+ggplot(df_summary_signed, aes(x = category, y = n, fill = direction)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = c("Upregulated" = "#1f78b4", "Downregulated" = "#e31a1c")) +
+  labs(
+    x = "log2 Fold Change category",
+    y = "Number of genes",
+    fill = "",
+    title = "Up- vs Down-regulated genes by Fold Change"
+  ) +
+  theme_minimal(base_size = 14)
+```
+
+
+
+## 3. Venn Diagram of AMF effect
+
+```{r 9, echo=T}
+
+genes_AMF_at_20FC <- rownames(sig_AMF_at_20FC)
+genes_AMF_at_80FC  <- rownames(sig_AMF_at_80FC)
+
+#Creating Gene List for Venn Diagram
+
+gene_list <- list(
+  Drought = genes_AMF_at_20FC,
+  WellWatered= genes_AMF_at_80FC)
+
+fit <- euler(gene_list)
+
+plot(fit,
+     fills = list(fill = c("skyblue", "salmon"), alpha = 0.6),
+     labels = list(font = 2),
+     edges = TRUE,
+     quantities = TRUE)
+```
+
+### Identifying Common and Unique Genes
+
+Further breakdown of the overlap to identify genes common to all comparisons, common to pairs, and unique to each comparison.
+
+
+```{r 10, echo=T}
+
+### Common to all three
+common_AMF <- Reduce(intersect, list(genes_AMF_at_20FC, genes_AMF_at_80FC))
+
+### Unique to each
+unique_20FC <- setdiff(genes_AMF_at_20FC, genes_AMF_at_80FC)
+unique_80FC <- setdiff(genes_AMF_at_80FC, genes_AMF_at_20FC)
+
+
+```
+
+
+
+### Produce Tables Unique and commmon
+
+```{r 11, echo=T}
+
+
+
+
+write.table(vsd_mat[rownames(vsd_mat) %in% common_AMF ,]
+, "/Users/im/Documents/UniFR/2024_FRIBURG2/03_2024_RNAseqDrought/Results/Venn_Commmon_AMF_TransformedCount.tsv",quote = F,sep = "\t") 
+write.table(vsd_mat[rownames(vsd_mat) %in% unique_20FC ,]
+, "/Users/im/Documents/UniFR/2024_FRIBURG2/03_2024_RNAseqDrought/Results/Venn_Unique_AMF_20FC_TransformedCount.tsv",quote = F,sep = "\t") 
+write.table(vsd_mat[rownames(vsd_mat) %in% unique_80FC,]
+, "/Users/im/Documents/UniFR/2024_FRIBURG2/03_2024_RNAseqDrought/Results/Venn_Commmon_AMF_80FC_TransformedCount.tsv",quote = F,sep = "\t") 
+
+
+```
+
+
+
+
+
+
+# 5. Big Venn Diagram Irrigation vs AMF
+
+```{r 17, echo=T}
+
+genes_Irrigation <- unique(c(rownames(sig_Irrigation_in_NoAMF),rownames(sig_Irrigation_in_AMF)))
+
+genes_AMF <- unique(c(rownames(sig_AMF_at_20FC),rownames(sig_AMF_at_80FC)) )
+
+#Creating Gene List for Venn Diagram
+
+gene_list <- list(
+  Irrigation = genes_Irrigation,
+  Mycorrhiza= genes_AMF)
+
+fit <- euler(gene_list)
+
+plot(fit,
+     fills = list(fill = c("gray", "lightgreen"), alpha = 0.6),
+     labels = list(font = 2),
+     edges = TRUE,
+     quantities = TRUE)
+
+
+### Common to all three
+common_IrrigationAMF_VF <- Reduce(intersect, list(genes_Irrigation, genes_AMF))
+
+### Unique to each
+unique_IrrigationVF <- setdiff(genes_Irrigation, genes_AMF)
+unique_MycorrhizaVF <- setdiff(genes_AMF, genes_Irrigation)
+```
+
+# 6. Contrasts Interaction effect Does mycorrhizal colonization significantly modify the magnitude or direction of the drought response?
+
+## 2. Mycorrhizal effect at well watered plants 80FC
+The result is the log2 fold change of NoAMF vs. AMF at the 80FC level. The oposite as before
+
+```{r 88, echo=T}
+
+res_Interaction <- results(dds, name="MycoAMF.Irrigation20FC")
+res_Interaction[order(res_Interaction$padj), ]
+sig_Interaction <- subset(res_Interaction, padj < 0.05 )
+
+# Master discrete palette for all potential categories
+all_cat_colors <- c(
+  "Primed / Amplified"              = "#D55E00", # Vermillion Red
+  "AMF-Specific Drought Responders" = "#009E73", # Bluish Green
+  "Buffered / Suppressed"           = "#0072B2", # Royal Blue
+  "Antagonistic / Opposing"         = "#CC79A7", # Reddish Purple
+  "Other Interaction"               = "#888888"  # Dark Grey
+)
+
+# Combine contrasts into a single clean data frame
+df_master <- data.frame(
+  gene             = rownames(res_Interaction),
+  lfc_NonAMF       = res_Irrigation_in_NoAMF$log2FoldChange,
+  padj_NonAMF      = res_Irrigation_in_NoAMF$padj,
+  lfc_AMF          = res_Irrigation_in_AMF$log2FoldChange,
+  padj_AMF         = res_Irrigation_in_AMF$padj,
+  lfc_Interaction  = res_Interaction$log2FoldChange,
+  padj_Interaction = res_Interaction$padj
+) %>% 
+  filter(!is.na(padj_Interaction) & !is.na(lfc_NonAMF) & !is.na(lfc_AMF)) %>%
+  mutate(
+    is_sig_interaction = padj_Interaction < 0.05,
+    sig_NonAMF         = padj_NonAMF < 0.05,
+    sig_AMF            = padj_AMF < 0.05,
+    
+    # Classify biological modes
+    Category = case_when(
+      !is_sig_interaction ~ "Not Significant",
+      (lfc_NonAMF * lfc_AMF) < 0 ~ "Antagonistic / Opposing",
+      sig_AMF & !sig_NonAMF ~ "AMF-Specific Drought Responders",
+      sig_AMF & sig_NonAMF & (abs(lfc_AMF) > abs(lfc_NonAMF)) ~ "Primed / Amplified",
+      sig_AMF & sig_NonAMF & (abs(lfc_AMF) < abs(lfc_NonAMF)) ~ "Buffered / Suppressed",
+      TRUE ~ "Other Interaction"
+    )
+  )
+
+# Filter for significant interaction DEGs (460 genes)
+sig_interaction_df <- filter(df_master, is_sig_interaction)
+
+# Dynamically extract present categories and their palette subset
+present_categories <- unique(sig_interaction_df$Category)
+cat_colors_present <- all_cat_colors[names(all_cat_colors) %in% present_categories]
+
+
+# ==============================================================================
+# PANEL A: VOLCANO PLOT (INTERACTION TERM)
+# ==============================================================================
+
+EnhancedVolcano(
+  res_Interaction,
+  lab             = rownames(res_Interaction),
+  x               = 'log2FoldChange',
+  y               = 'padj',
+  pCutoff         = 0.05,
+  FCcutoff        = 2,
+  title           = 'Water status x Mycorrhiza Interaction',
+  subtitle        = '',
+  caption         = 'Log2FC vs adjusted p-value',
+  legendPosition  = 'right'
+)
+
+
+# ==============================================================================
+# PANEL B: LFC COMPARISON SCATTER PLOT
+# ==============================================================================
+
+panel_B <- ggplot(df_master, aes(x = lfc_NonAMF, y = lfc_AMF)) +
+  # Non-significant background points
+  geom_point(data = filter(df_master, !is_sig_interaction), 
+             color = "grey85", alpha = 0.4, size = 1.2) +
+  # Significant interaction points colored by Category
+  geom_point(data = sig_interaction_df, 
+             aes(color = Category), alpha = 0.85, size = 2) +
+  scale_color_manual(values = cat_colors_present, name = "Interaction Mode") +
+  
+  # Reference lines (1:1 line = no interaction effect)
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "black", linewidth = 0.8) +
+  geom_hline(yintercept = 0, linetype = "dotted", color = "grey50") +
+  geom_vline(xintercept = 0, linetype = "dotted", color = "grey50") +
+  
+  labs(
+    title   = "Panel B: Drought LFC Comparison (AMF vs. Non-AMF)",
+    x       = expression("Log"[2]*"FC Drought effect in Non-AMF"),
+    y       = expression("Log"[2]*"FC Drought effect in AMF"),
+    caption = "Dashed line (y = x) represents identical drought response (No Interaction)"
+  ) +
+  theme_bw(base_size = 12) +
+  theme(panel.grid.minor = element_blank(), legend.position = "right")
+
+print(panel_B)
+
+
+# ==============================================================================
+# PANEL C: EXPRESSION HEATMAP (460 INTERACTION DEGs)
+# ==============================================================================
+
+# 1. Normalize & Z-score scaled counts
+norm_counts      <- counts(dds, normalized = TRUE)
+sig_genes_counts <- norm_counts[sig_interaction_df$gene, ]
+z_scores         <- t(scale(t(sig_genes_counts)))
+
+# 2. Build row/col annotation structures
+annotation_row <- data.frame(
+  Category  = factor(sig_interaction_df$Category, levels = present_categories),
+  row.names = sig_interaction_df$gene
+)
+
+annotation_col <- as.data.frame(colData(dds)[, c("Myco", "Irrigation")])
+
+# 3. Generate Heatmap
+panel_C <- pheatmap(
+  z_scores,
+  annotation_row    = annotation_row,
+  annotation_col    = annotation_col,
+  annotation_colors = list(Category = cat_colors_present), 
+  show_rownames     = FALSE,
+  show_colnames     = TRUE,
+  cluster_rows      = TRUE,
+  cluster_cols      = FALSE,
+  scale             = "none",
+  color             = colorRampPalette(rev(brewer.pal(n = 7, name = "RdYlBu")))(100),
+  main              = "Panel C: Expression Patterns of 460 Interaction DEGs Across All 4 Conditions",
+  cutree_rows       = length(present_categories) # Dynamically split by number of present categories
+)
+
+# 4. Print Summary Count Table
+table(annotation_row$Category)
+
+interaction_Genes<-z_scores
+
+```
+
+
+# 7. Gene annotation
+
+### Gene products
+
+
+```{r 18 Annotategenes,echo =TRUE}
+
+# import annotation
+
+  GFF<- read.delim("/Users/im/Documents/UniFR/2024_FRIBURG2/02_2024_ArganGenome/03_Manuscript_v6/04_Annotation/01_hap1/Sspinosum_hap1.gtf",header = F,sep = "\t",comment.char = "#",)
+
+# modify annotation gene name
+
+a<-lapply(strsplit(GFF$V9,split =";") , function(x)  paste(x[grep("Name=",x)],x[length(x)],sep = "@") )  
+b<-lapply(strsplit(GFF$V9,split =";") , function(x)  x[1]   )
+
+c2<- as.data.frame(matrix(unlist(Map(c,a,b)),ncol = 2,byrow = T))
+c3<-gsub("transcript_id ","",unlist(lapply(strsplit(c2$V1,split = "@"), function (x) x[[1]]))  )
+c3[c3==""]<-gsub("gene_id","",c2$V1[grep("Name",invert = T,c2$V1)] )
+c2$V1<-c3
+c2$V2<-gsub("transcript_id ","",c2$V2)
+c2$V1<-gsub("@","",c2$V1)
+
+GFFb<-cbind.data.frame(GFF,Geneid=c2$V2,Name=c2$V1)
+
+
+# Grep gene region
+gffID<-unlist(lapply(strsplit(GFFb[GFFb$V3=="mRNA",9],split =";"),function (x) x[c(2)]) )
+gffID<-gsub("gene_id ","",gffID)
+gffProduct<-unlist(lapply(strsplit(GFFb[GFFb$V3=="mRNA",9],split =";"),function (x) x[c(8)]) )
+gffProduct<-gsub("product=","",gffProduct)
+gfffaa<-unlist(lapply(strsplit(GFFb[GFFb$V3=="mRNA",9],split =";"),function (x) x[c(1)]) )
+gfffaa<-gsub("transcript_id ","",gfffaa)
+
+
+gffAnno<-cbind.data.frame(Geneid=gffID,Product=gffProduct,ID=gfffaa)
+gffAnno<-gffAnno[!duplicated(gffAnno$Geneid), ]
+
+
+
+# Annotated genes
+
+#gffAnno[gffAnno$Geneid %in% genes_Argon,]
+#gffAnno[gffAnno$Geneid %in% genes_NIFH,]
+#gffAnno[gffAnno$Geneid %in% genes_HN,]
+
+
+```
+
+
+### Eggnog gene annotation
+
+
+```{r 19 Annotategenes,echo =TRUE}
+
+eggNOG<- read.delim("/Users/im/Documents/UniFR/2024_FRIBURG2/02_2024_ArganGenome/03_Manuscript_v6/05_eggNOG/01_hap1/out.emapper.decorated_hap1.gff",header = F,sep = "\t",comment.char = "#")
+
+eggNOG2<-unlist(lapply(strsplit(eggNOG[,9],split =";"),function (x) x[c(1)]) )
+eggNOG2<-gsub("ID=","",eggNOG2)
+eggNOG3<-unlist(lapply(strsplit(eggNOG[,9],split =";"),function (x) paste(x[c(1)],x[grep("em_GOs",x)],sep = "@") ))
+
+# Split by "@"
+split_data <- strsplit(eggNOG3, "@")
+# Convert to data frame
+eggNOG4 <- as.data.frame(do.call(rbind, lapply(split_data, function(x) {
+  # Ensure both sides are present
+  if (length(x) == 1) x <- c(x, NA)
+  x
+})), stringsAsFactors = FALSE)
+
+# Rename columns
+colnames(eggNOG4) <- c("geneID", "GO")
+
+write.table(eggNOG4
+, "/Users/im/Documents/UniFR/2024_FRIBURG2/03_2024_RNAseqDrought/Results/Background.txt",quote = F,sep = "\t",row.names = F) 
+# rename values
+eggNOG4$geneID<-gsub("ID=","",eggNOG4$geneID)
+eggNOG4$GO<-gsub("em_GOs=","",eggNOG4$GO)
+
+
+
+eggNOG4b<-as.list(eggNOG4$GO)
+eggNOG4b<-lapply(eggNOG4b, function(x) unlist(strsplit(x,split = ",")) )
+names(eggNOG4b)<-eggNOG4$geneID
+
+GO2geneID <- inverseList(eggNOG4b)
+
+```
+
+```{r 1990b sigGenes raw,echo =TRUE}
+# Raw Tables Significanct DEG
+# drought questions
+sig_Irrigation_in_NoAMF_Name<-cbind.data.frame (geneID=rownames(sig_Irrigation_in_NoAMF),sig_Irrigation_in_NoAMF)
+sig_Irrigation_in_AMF_Name<-cbind.data.frame (geneID=rownames(sig_Irrigation_in_AMF),sig_Irrigation_in_AMF)
+# myc questions
+sig_AMF_at_80FC_Name<-cbind.data.frame (geneID=rownames(sig_AMF_at_80FC),sig_AMF_at_80FC)
+sig_AMF_at_20FC_Name<-cbind.data.frame (geneID=rownames(sig_AMF_at_20FC),sig_AMF_at_20FC)
+# Interaction
+sig_Interaction_Name<-cbind.data.frame (geneID=rownames(sig_Interaction),sig_Interaction)
+
+write.table(sig_Irrigation_in_NoAMF_Name
+, "/Users/im/Documents/UniFR/2024_FRIBURG2/03_2024_RNAseqDrought/Results/Raw_SigGenes_DroughtEffectWhenNoMycorrhiza.txt",quote = F,sep = "\t",row.names = F) 
+write.table(sig_Irrigation_in_AMF_Name
+, "/Users/im/Documents/UniFR/2024_FRIBURG2/03_2024_RNAseqDrought/Results/Raw_SigGenes_DroughtEffectWhenMycorrhiza.txt",quote = F,sep = "\t",row.names = F) 
+write.table(sig_AMF_at_80FC_Name
+, "/Users/im/Documents/UniFR/2024_FRIBURG2/03_2024_RNAseqDrought/Results/Raw_SigGenes_MycorrhizaEffectWhenWellWatered.txt",quote = F,sep = "\t",row.names = F) 
+write.table(sig_AMF_at_20FC_Name
+, "/Users/im/Documents/UniFR/2024_FRIBURG2/03_2024_RNAseqDrought/Results/Raw_SigGenes_MycorrhizaEffectWhenDrought.txt",quote = F,sep = "\t",row.names = F) 
+write.table(sig_Interaction_Name
+, "/Users/im/Documents/UniFR/2024_FRIBURG2/03_2024_RNAseqDrought/Results/Raw_SigGenes_Interaction.txt",quote = F,sep = "\t",row.names = F) 
+
+
+```
+
+
+```{r 19b sigGenes annotated,echo =TRUE}
+
+
+eggNOGName<-unlist(lapply(strsplit(eggNOG[,9],split =";"),function (x) paste(x[c(1)],x[grep("em_PFAMs",x)],sep = "@") ))
+head(eggNOGName)
+# Split by "@"
+split_dataName <- strsplit(eggNOGName, "@")
+# Convert to data frame
+eggNOGNameVF <- as.data.frame(do.call(rbind, lapply(split_dataName, function(x) {
+  # Ensure both sides are present
+  if (length(x) == 1) x <- c(x, NA)
+  x
+})), stringsAsFactors = FALSE)
+
+# Rename columns
+colnames(eggNOGNameVF) <- c("geneID", "Name")
+
+# rename values
+eggNOGNameVF$geneID<-gsub("ID=","",eggNOGNameVF$geneID)
+eggNOGNameVF$Name<-gsub("em_PFAMs=","",eggNOGNameVF$Name)
+
+# Now transform the tables with the significant genes
+# Add gene id field
+eggNOGNameVF[eggNOGNameVF$geneID %in% "g10388.t1",]
+
+sig_Irrigation_in_NoAMF[rownames(sig_Irrigation_in_NoAMF) %in% "g10388.t1",]
+
+# drought questions
+sig_Irrigation_in_NoAMF_Name<-cbind.data.frame (geneID=rownames(sig_Irrigation_in_NoAMF),sig_Irrigation_in_NoAMF)
+sig_Irrigation_in_NoAMF_Name<-merge(sig_Irrigation_in_NoAMF_Name,eggNOGNameVF,by="geneID",all.x=T)
+
+sig_Irrigation_in_NoAMF_Name<-merge(sig_Irrigation_in_NoAMF_Name,eggNOG4,by="geneID",all=T)
+
+sig_Irrigation_in_AMF_Name<-cbind.data.frame (geneID=rownames(sig_Irrigation_in_AMF),sig_Irrigation_in_AMF)
+sig_Irrigation_in_AMF_Name<-merge(sig_Irrigation_in_AMF_Name,eggNOGNameVF,by="geneID")
+sig_Irrigation_in_AMF_Name<-merge(sig_Irrigation_in_AMF_Name,eggNOG4,by="geneID")
+
+# myc questions
+sig_AMF_at_80FC_Name<-cbind.data.frame (geneID=rownames(sig_AMF_at_80FC),sig_AMF_at_80FC)
+sig_AMF_at_80FC_Name<-merge(sig_AMF_at_80FC_Name,eggNOGNameVF,by="geneID")
+sig_AMF_at_80FC_Name<-merge(sig_AMF_at_80FC_Name,eggNOG4,by="geneID")
+
+sig_AMF_at_20FC_Name<-cbind.data.frame (geneID=rownames(sig_AMF_at_20FC),sig_AMF_at_20FC)
+sig_AMF_at_20FC_Name<-merge(sig_AMF_at_20FC_Name,eggNOGNameVF,by="geneID")
+sig_AMF_at_20FC_Name<-merge(sig_AMF_at_20FC_Name,eggNOG4,by="geneID")
+
+#interaction_Genes
+sig_Interaction_Name<-cbind.data.frame (geneID=rownames(sig_Interaction),sig_Interaction)
+sig_Interaction_Name<-merge(sig_Interaction_Name,eggNOGNameVF,by="geneID")
+sig_Interaction_Name<-merge(sig_Interaction_Name,eggNOG4,by="geneID")
+
+
+write.table(sig_Irrigation_in_NoAMF_Name
+, "/Users/im/Documents/UniFR/2024_FRIBURG2/03_2024_RNAseqDrought/Results/AnnotatedSigGenes_DroughtEffectWhenNoMycorrhiza.txt",quote = F,sep = "\t",row.names = F) 
+write.table(sig_Irrigation_in_AMF_Name
+, "/Users/im/Documents/UniFR/2024_FRIBURG2/03_2024_RNAseqDrought/Results/AnnotatedSigGenes_DroughtEffectWhenMycorrhiza.txt",quote = F,sep = "\t",row.names = F) 
+write.table(sig_AMF_at_80FC_Name
+, "/Users/im/Documents/UniFR/2024_FRIBURG2/03_2024_RNAseqDrought/Results/AnnotatedSigGenes_MycorrhizaEffectWhenWellWatered.txt",quote = F,sep = "\t",row.names = F) 
+write.table(sig_AMF_at_20FC_Name
+, "/Users/im/Documents/UniFR/2024_FRIBURG2/03_2024_RNAseqDrought/Results/AnnotatedSigGenes_MycorrhizaEffectWhenDrought.txt",quote = F,sep = "\t",row.names = F) 
+write.table(sig_Interaction_Name
+, "/Users/im/Documents/UniFR/2024_FRIBURG2/03_2024_RNAseqDrought/Results/AnnotatedSigGenes_Interaction.txt",quote = F,sep = "\t",row.names = F) 
+
+###
+
+# Add gene id field
+
+# drought questions
+All_Irrigation_in_NoAMF_Name<-cbind.data.frame (geneID=rownames(res_Irrigation_in_NoAMF[order(res_Irrigation_in_NoAMF$padj), ]),res_Irrigation_in_NoAMF[order(res_Irrigation_in_NoAMF$padj), ])
+All_Irrigation_in_NoAMF_Name<-merge(All_Irrigation_in_NoAMF_Name,eggNOGNameVF,by="geneID")
+All_Irrigation_in_NoAMF_Name<-merge(All_Irrigation_in_NoAMF_Name,eggNOG4,by="geneID")
+
+All_Irrigation_in_AMF_Name<-cbind.data.frame (geneID=rownames(res_Irrigation_in_AMF[order(res_Irrigation_in_AMF$padj), ]),res_Irrigation_in_AMF[order(res_Irrigation_in_AMF$padj), ])
+All_Irrigation_in_AMF_Name<-merge(All_Irrigation_in_AMF_Name,eggNOGNameVF,by="geneID")
+All_Irrigation_in_AMF_Name<-merge(All_Irrigation_in_AMF_Name,eggNOG4,by="geneID")
+
+# myc questions
+All_AMF_at_80FC_Name<-cbind.data.frame (geneID=rownames(res_AMF_at_80FC[order(res_AMF_at_80FC$padj), ]),res_AMF_at_80FC[order(res_AMF_at_80FC$padj), ])
+All_AMF_at_80FC_Name<-merge(All_AMF_at_80FC_Name,eggNOGNameVF,by="geneID")
+All_AMF_at_80FC_Name<-merge(All_AMF_at_80FC_Name,eggNOG4,by="geneID")
+
+All_AMF_at_20FC_Name<-cbind.data.frame (geneID=rownames(res_AMF_at_20FC[order(res_AMF_at_20FC$padj), ]),res_AMF_at_20FC[order(res_AMF_at_20FC$padj), ])
+All_AMF_at_20FC_Name<-merge(All_AMF_at_20FC_Name,eggNOGNameVF,by="geneID")
+All_AMF_at_20FC_Name<-merge(All_AMF_at_20FC_Name,eggNOG4,by="geneID")
+
+
+# Interaction
+All_Interaction_Name<-cbind.data.frame (geneID=rownames(res_Interaction[order(res_Interaction$padj), ]),res_Interaction[order(res_Interaction$padj), ])
+All_Interaction_Name<-merge(All_Interaction_Name,eggNOGNameVF,by="geneID")
+All_Interaction_Name<-merge(All_Interaction_Name,eggNOG4,by="geneID")
+
+
+# include orthologs in other species
+
+OMA<-read.delim("/Users/im/Documents/UniFR/2024_FRIBURG2/03_2024_RNAseqDrought/Results/OMA_models/OMA_OrthologousGroups_parsed.txt",h=T,sep="\t",comment.char = "#")
+OMA
+OMA2<-OMA
+colnames(OMA2)[2]<-"geneID"
+colnames(OMA2)[3:5]<-c("OrthologInMedicago","OrthologInRice","OrthologInArabidopsis")
+
+All_Irrigation_in_NoAMF_Name<-merge(All_Irrigation_in_NoAMF_Name,OMA2[,-1],by="geneID")
+All_Irrigation_in_AMF_Name<-merge(All_Irrigation_in_AMF_Name,OMA2[,-1],by="geneID")
+All_AMF_at_80FC_Name<-merge(All_AMF_at_80FC_Name,OMA2[,-1],by="geneID")
+All_AMF_at_20FC_Name<-merge(All_AMF_at_20FC_Name,OMA2[,-1],by="geneID")
+# interaction
+All_Interaction_Name<-merge(All_Interaction_Name,OMA2[,-1],by="geneID")
+
+
+
+write.table(All_Irrigation_in_NoAMF_Name
+, "/Users/im/Documents/UniFR/2024_FRIBURG2/03_2024_RNAseqDrought/Results/AnnotatedALLGenes_DroughtEffectWhenNoMycorrhiza.txt",quote = F,sep = "\t",row.names = F) 
+write.table(All_Irrigation_in_AMF_Name
+, "/Users/im/Documents/UniFR/2024_FRIBURG2/03_2024_RNAseqDrought/Results/AnnotatedALLGenes_DroughtEffectWhenMycorrhiza.txt",quote = F,sep = "\t",row.names = F) 
+write.table(All_AMF_at_80FC_Name
+, "/Users/im/Documents/UniFR/2024_FRIBURG2/03_2024_RNAseqDrought/Results/AnnotatedALLGenes_MycorrhizaEffectWhenWellWatered.txt",quote = F,sep = "\t",row.names = F) 
+write.table(All_AMF_at_20FC_Name
+, "/Users/im/Documents/UniFR/2024_FRIBURG2/03_2024_RNAseqDrought/Results/AnnotatedALLGenes_MycorrhizaEffectWhenDrought.txt",quote = F,sep = "\t",row.names = F) 
+
+write.table(All_Interaction_Name
+, "/Users/im/Documents/UniFR/2024_FRIBURG2/03_2024_RNAseqDrought/Results/AnnotatedALLGenes_Interaction.txt",quote = F,sep = "\t",row.names = F) 
+
+
+```
+# 7. TOP GENES per Test
+
+## 1. Drought effect Non-mycorrhiza
+
+```{r top Genes,echo =TRUE}
+#top 5 %
+# 1. Identify the top 5% threshold for padj
+# We use quantile to find the value that marks the bottom 5% of p-values
+threshold <- quantile(res_Irrigation_in_NoAMF$padj, probs = 0.005, na.rm = TRUE)
+
+# 2. Filter the results to get the gene IDs
+top_genes_indices <- which(res_Irrigation_in_NoAMF$padj <= threshold)
+top_genes_ids <- rownames(res_Irrigation_in_NoAMF)[top_genes_indices]
+
+# 3. Subset your expression matrix using these IDs
+plot_mat <- vsd_mat[top_genes_ids, ]
+
+colnames(plot_mat)<-gsub("20FC","Drought",gsub("80FC","Well-watered",paste(coldata$Myco,coldata$Irrigation,sep="_")))
+
+
+tempName<-eggNOGNameVF[eggNOGNameVF$geneID %in% rownames(plot_mat),]
+tempName2<-paste(tempName[,1],tempName[,2],sep = "_")
+
+# Genes missing in annotation
+missNAmes<-paste(rownames(plot_mat)[!rownames(plot_mat) %in% tempName$geneID],"NA",sep = "_")
+
+# 1. Combine your two data sources into one vector
+all_names <- c(tempName2, missNAmes)
+
+# 2. Extract the prefix (the part before the underscore) to use as names
+# This allows us to call all_names["g11631.t1"] and get the full string
+names(all_names) <- sub("_.*", "", all_names)
+
+# 3. Use the original rownames to pull the strings in the correct order
+final_ordered_names <- all_names[rownames(plot_mat)]
+
+# 4. (Optional) Remove the names attribute if you want a clean vector
+final_ordered_names <- unname(final_ordered_names)
+rownames(plot_mat) <- final_ordered_names
+
+# 5. show only columns of comparions
+
+plot_mat<-plot_mat[,grep("^AMF",colnames(plot_mat),invert = T)]
+
+# 6. Generate the heatmap
+
+
+
+pheatmap(t(plot_mat), 
+         scale = "column", 
+         show_colnames = TRUE, 
+         show_rownames = TRUE, # Hide if there are too many genes to read
+         main = "Water-status, non-mycorrhizal\nTop 0.5% Significant Genes (by padj)",
+         clustering_distance_rows = "correlation")
+
+
+
+```
+
+## 2. Drought effect mycorrhiza
+
+```{r top Genes2,echo =TRUE}
+#top 5 %
+# 1. Identify the top 5% threshold for padj
+# We use quantile to find the value that marks the bottom 5% of p-values
+threshold <- quantile(res_Irrigation_in_AMF$padj, probs = 0.005, na.rm = TRUE)
+
+# 2. Filter the results to get the gene IDs
+top_genes_indices <- which(res_Irrigation_in_AMF$padj <= threshold)
+top_genes_ids <- rownames(res_Irrigation_in_AMF)[top_genes_indices]
+
+# 3. Subset your expression matrix using these IDs
+plot_mat <- vsd_mat[top_genes_ids, ]
+
+colnames(plot_mat)<-gsub("20FC","Drought",gsub("80FC","Well-watered",paste(coldata$Myco,coldata$Irrigation,sep="_")))
+
+
+tempName<-eggNOGNameVF[eggNOGNameVF$geneID %in% rownames(plot_mat),]
+tempName2<-paste(tempName[,1],tempName[,2],sep = "_")
+
+# Genes missing in annotation
+missNAmes<-paste(rownames(plot_mat)[!rownames(plot_mat) %in% tempName$geneID],"NA",sep = "_")
+
+# 1. Combine your two data sources into one vector
+all_names <- c(tempName2, missNAmes)
+
+# 2. Extract the prefix (the part before the underscore) to use as names
+# This allows us to call all_names["g11631.t1"] and get the full string
+names(all_names) <- sub("_.*", "", all_names)
+
+# 3. Use the original rownames to pull the strings in the correct order
+final_ordered_names <- all_names[rownames(plot_mat)]
+
+# 4. (Optional) Remove the names attribute if you want a clean vector
+final_ordered_names <- unname(final_ordered_names)
+rownames(plot_mat) <- final_ordered_names
+
+# 5. show only columns of comparions
+
+plot_mat<-plot_mat[,grep("^AMF",colnames(plot_mat),invert = F)]
+
+# 6. Generate the heatmap
+
+
+
+pheatmap(t(plot_mat), 
+         scale = "column", 
+         show_colnames = TRUE, 
+         show_rownames = TRUE, # Hide if there are too many genes to read
+         main = "Water-status, mycorrhizal\nTop 0.5% Significant Genes (by padj)",
+         clustering_distance_rows = "correlation")
+
+
+```
+
+## 3. Mycorrhiza effect well-watered
+```{r top Genes3,echo =TRUE}
+#top 5 %
+# 1. Identify the top 5% threshold for padj
+# We use quantile to find the value that marks the bottom 5% of p-values
+threshold <- quantile(res_AMF_at_80FC$padj, probs = 0.005, na.rm = TRUE)
+
+# 2. Filter the results to get the gene IDs
+top_genes_indices <- which(res_AMF_at_80FC$padj <= threshold)
+top_genes_ids <- rownames(res_AMF_at_80FC)[top_genes_indices]
+
+# 3. Subset your expression matrix using these IDs
+plot_mat <- vsd_mat[top_genes_ids, ]
+
+colnames(plot_mat)<-gsub("20FC","Drought",gsub("80FC","Well-watered",paste(coldata$Myco,coldata$Irrigation,sep="_")))
+
+
+tempName<-eggNOGNameVF[eggNOGNameVF$geneID %in% rownames(plot_mat),]
+tempName2<-paste(tempName[,1],tempName[,2],sep = "_")
+
+# Genes missing in annotation
+missNAmes<-paste(rownames(plot_mat)[!rownames(plot_mat) %in% tempName$geneID],"NA",sep = "_")
+
+# 1. Combine your two data sources into one vector
+all_names <- c(tempName2, missNAmes)
+
+# 2. Extract the prefix (the part before the underscore) to use as names
+# This allows us to call all_names["g11631.t1"] and get the full string
+names(all_names) <- sub("_.*", "", all_names)
+
+# 3. Use the original rownames to pull the strings in the correct order
+final_ordered_names <- all_names[rownames(plot_mat)]
+
+# 4. (Optional) Remove the names attribute if you want a clean vector
+final_ordered_names <- unname(final_ordered_names)
+rownames(plot_mat) <- final_ordered_names
+
+# 5. show only columns of comparions
+
+plot_mat<-plot_mat[,grep("Well-watered",colnames(plot_mat),invert = F)]
+
+# 6. Generate the heatmap
+
+
+
+pheatmap(t(plot_mat), 
+         scale = "column", 
+         show_colnames = TRUE, 
+         show_rownames = TRUE, # Hide if there are too many genes to read
+         main = "Mycorrhizal-status, well-watered\nTop 0.5% Significant Genes (by padj)",
+         clustering_distance_rows = "correlation")
+
+
+```
+
+## 4. Mycorrhiza effect drought
+
+```{r top Genes4,echo =TRUE}
+#top 5 %
+# 1. Identify the top 5% threshold for padj
+# We use quantile to find the value that marks the bottom 5% of p-values
+threshold <- quantile(res_AMF_at_20FC$padj, probs = 0.005, na.rm = TRUE)
+
+# 2. Filter the results to get the gene IDs
+top_genes_indices <- which(res_AMF_at_20FC$padj <= threshold)
+top_genes_ids <- rownames(res_AMF_at_20FC)[top_genes_indices]
+
+# 3. Subset your expression matrix using these IDs
+plot_mat <- vsd_mat[top_genes_ids, ]
+
+colnames(plot_mat)<-gsub("20FC","Drought",gsub("80FC","Well-watered",paste(coldata$Myco,coldata$Irrigation,sep="_")))
+
+
+tempName<-eggNOGNameVF[eggNOGNameVF$geneID %in% rownames(plot_mat),]
+tempName2<-paste(tempName[,1],tempName[,2],sep = "_")
+
+# Genes missing in annotation
+missNAmes<-paste(rownames(plot_mat)[!rownames(plot_mat) %in% tempName$geneID],"NA",sep = "_")
+
+# 1. Combine your two data sources into one vector
+all_names <- c(tempName2, missNAmes)
+
+# 2. Extract the prefix (the part before the underscore) to use as names
+# This allows us to call all_names["g11631.t1"] and get the full string
+names(all_names) <- sub("_.*", "", all_names)
+
+# 3. Use the original rownames to pull the strings in the correct order
+final_ordered_names <- all_names[rownames(plot_mat)]
+
+# 4. (Optional) Remove the names attribute if you want a clean vector
+final_ordered_names <- unname(final_ordered_names)
+rownames(plot_mat) <- final_ordered_names
+
+# 5. show only columns of comparions
+
+plot_mat<-plot_mat[,grep("Well-watered",colnames(plot_mat),invert = T)]
+
+# 6. Generate the heatmap
+
+
+
+pheatmap(t(plot_mat), 
+         scale = "column", 
+         show_colnames = TRUE, 
+         show_rownames = TRUE, # Hide if there are too many genes to read
+         main = "Mycorrhizal-status, Drought\nTop 0.5% Significant Genes (by padj)",
+         clustering_distance_rows = "correlation")
+
+
+```
+
+
+# 8. GO ENrichement analysis 
+
+### 1. ALL drought genes
+
+
+```{r 202 GO drought,echo =TRUE}
+
+
+# import eggNOG annotation. create an object with gene name as list name and Go terms inside each list element as a vector.
+
+#Genes of interest
+
+row.names(sig_AMF_at_20FC)
+  geneList <- factor(as.integer(eggNOG4$geneID %in% gsub("gene-","",genes_Irrigation))) #define which genes 
+names(geneList) <- eggNOG4$geneID
+str(geneList)
+
+# create data object
+GOdata <- new("topGOdata", ontology = "BP", allGenes = geneList, annot = annFUN.gene2GO, gene2GO = eggNOG4b, nodeSize = 10)
+
+#perform test
+resultFisher <- runTest(GOdata, algorithm = "classic", statistic = "fisher")
+
+
+# viz test only fisher
+
+allGO = usedGO(object = GOdata)
+allResR4 <- GenTable(GOdata, classicFisher = resultFisher, ranksOf = "classicFisher", topNodes = length(allGO))
+GO_AMFEffect_Drought<-allResR4
+
+allResR4Sign<-allResR4[allResR4$classicFisher<0.05,]
+showSigOfNodes(GOdata, score(resultFisher), firstSigNodes = 5, useInfo = 'all')
+
+
+printGraph(GOdata, resultFisher, firstSigNodes = 5, fn.prefix = "EffectAMFArgane", useInfo = "all", pdfSW = TRUE)
+
+
+write.table(allResR4Sign
+, "/Users/im/Documents/UniFR/2024_FRIBURG2/03_2024_RNAseqDrought/Results/GOvf_enriched_ALL_DROUGHT.tsv",quote = F,sep = "\t",row.names = T) 
+
+# We then used go-figure to visualize the clusters of related GO terms: 
+#https://gitlab.com/evogenlab/GO-Figure#running-go-figure
+# in bash
+#conda activate go-figure  
+#gofigure.py -j topgo -i ~/Documents/2024_FRIBURG2/03_2024_RNAseqDrought/Results/GO_Sign_CommonNoAMFAMF_Irrigation.tsv -o ~/Documents/2024_FRIBURG2/03_2024_RNAseqDrought/Go-figure/
+
+
+```
+
+### 2. ALL Mycorrhiza genes
+
+
+```{r 203 GO MYc,echo =TRUE}
+
+
+# import eggNOG annotation. create an object with gene name as list name and Go terms inside each list element as a vector.
+
+#Genes of interest
+
+row.names(sig_AMF_at_20FC)
+  geneList <- factor(as.integer(eggNOG4$geneID %in% gsub("gene-","",genes_AMF))) #define which genes 
+names(geneList) <- eggNOG4$geneID
+str(geneList)
+
+# create data object
+GOdata <- new("topGOdata", ontology = "BP", allGenes = geneList, annot = annFUN.gene2GO, gene2GO = eggNOG4b, nodeSize = 10)
+
+#perform test
+resultFisher <- runTest(GOdata, algorithm = "classic", statistic = "fisher")
+
+
+# viz test only fisher
+
+allGO = usedGO(object = GOdata)
+allResR4 <- GenTable(GOdata, classicFisher = resultFisher, ranksOf = "classicFisher", topNodes = length(allGO))
+GO_AMFEffect_Drought<-allResR4
+
+allResR4Sign<-allResR4[allResR4$classicFisher<0.05,]
+showSigOfNodes(GOdata, score(resultFisher), firstSigNodes = 5, useInfo = 'all')
+
+
+printGraph(GOdata, resultFisher, firstSigNodes = 5, fn.prefix = "EffectAMFArgane", useInfo = "all", pdfSW = TRUE)
+
+
+write.table(allResR4Sign
+, "/Users/im/Documents/UniFR/2024_FRIBURG2/03_2024_RNAseqDrought/Results/GOvf_enriched_ALL_AMF.tsv",quote = F,sep = "\t",row.names = T) 
+
+# We then used go-figure to visualize the clusters of related GO terms: 
+#https://gitlab.com/evogenlab/GO-Figure#running-go-figure
+# in bash
+#conda activate go-figure  
+#gofigure.py -j topgo -i ~/Documents/2024_FRIBURG2/03_2024_RNAseqDrought/Results/GO_Sign_CommonNoAMFAMF_Irrigation.tsv -o ~/Documents/2024_FRIBURG2/03_2024_RNAseqDrought/Go-figure/
+
+
+```
+### GO Mycorrhiza effect at Drought (20FC)
+
+
+```{r 20 GO Irrigation,echo =TRUE}
+
+
+# import eggNOG annotation. create an object with gene name as list name and Go terms inside each list element as a vector.
+
+#Genes of interest
+
+row.names(sig_AMF_at_20FC)
+  geneList <- factor(as.integer(eggNOG4$geneID %in% gsub("gene-","",row.names(sig_AMF_at_20FC)))) #define which genes 
+names(geneList) <- eggNOG4$geneID
+str(geneList)
+
+# create data object
+GOdata <- new("topGOdata", ontology = "BP", allGenes = geneList, annot = annFUN.gene2GO, gene2GO = eggNOG4b, nodeSize = 10)
+
+#perform test
+resultFisher <- runTest(GOdata, algorithm = "classic", statistic = "fisher")
+
+
+# viz test only fisher
+
+allGO = usedGO(object = GOdata)
+allResR4 <- GenTable(GOdata, classicFisher = resultFisher, ranksOf = "classicFisher", topNodes = length(allGO))
+GO_AMFEffect_Drought<-allResR4
+
+allResR4Sign<-allResR4[allResR4$classicFisher<0.05,]
+showSigOfNodes(GOdata, score(resultFisher), firstSigNodes = 5, useInfo = 'all')
+
+
+printGraph(GOdata, resultFisher, firstSigNodes = 5, fn.prefix = "EffectAMFArgane", useInfo = "all", pdfSW = TRUE)
+
+
+write.table(allResR4Sign
+, "/Users/im/Documents/UniFR/2024_FRIBURG2/03_2024_RNAseqDrought/Results/GO_enriched_MycEffect_Drought.tsv",quote = F,sep = "\t",row.names = T) 
+
+# We then used go-figure to visualize the clusters of related GO terms: 
+#https://gitlab.com/evogenlab/GO-Figure#running-go-figure
+# in bash
+#conda activate go-figure  
+#gofigure.py -j topgo -i ~/Documents/2024_FRIBURG2/03_2024_RNAseqDrought/Results/GO_Sign_CommonNoAMFAMF_Irrigation.tsv -o ~/Documents/2024_FRIBURG2/03_2024_RNAseqDrought/Go-figure/
+
+
+```
+
+
+### Go Mycorrhizal effect in well-watered plants
+
+
+```{r 20b GO Irrigation,echo =TRUE}
+
+genes_Irrigation
+genes_AMF
+# import eggNOG annotation. create an object with gene name as list name and Go terms inside each list element as a vector.
+
+#Genes of interest
+
+row.names(sig_AMF_at_80FC)
+  geneList <- factor(as.integer(eggNOG4$geneID %in% gsub("gene-","",row.names(sig_AMF_at_80FC)))) #define which genes 
+names(geneList) <- eggNOG4$geneID
+str(geneList)
+
+# create data object
+GOdata <- new("topGOdata", ontology = "BP", allGenes = geneList, annot = annFUN.gene2GO, gene2GO = eggNOG4b, nodeSize = 10)
+
+#perform test
+resultFisher <- runTest(GOdata, algorithm = "classic", statistic = "fisher")
+
+
+# viz test only fisher
+
+allGO = usedGO(object = GOdata)
+allResR4 <- GenTable(GOdata, classicFisher = resultFisher, ranksOf = "classicFisher", topNodes = length(allGO))
+GO_AMFEffect_WellWatered<-allResR4
+
+allResR4Sign<-allResR4[allResR4$classicFisher<0.05,]
+showSigOfNodes(GOdata, score(resultFisher), firstSigNodes = 5, useInfo = 'all')
+
+
+printGraph(GOdata, resultFisher, firstSigNodes = 5, fn.prefix = "EffectAMFArgane", useInfo = "all", pdfSW = TRUE)
+
+
+write.table(allResR4Sign
+, "/Users/im/Documents/UniFR/2024_FRIBURG2/03_2024_RNAseqDrought/Results/GO_Sign_UniqueNoAMF_Irrigation.tsv",quote = F,sep = "\t",row.names = T) 
+
+# We then used go-figure to visualize the clusters of related GO terms: 
+#https://gitlab.com/evogenlab/GO-Figure#running-go-figure
+# in bash
+#conda activate go-figure  
+#gofigure.py -j topgo -i ~/Documents/2024_FRIBURG2/03_2024_RNAseqDrought/Results/GO_Sign_CommonNoAMFAMF_Irrigation.tsv -o ~/Documents/2024_FRIBURG2/03_2024_RNAseqDrought/Go-figure/
+
+
+```
+
+### Irrigation effect no amf
+
+
+```{r 20c GO Irrigation,echo =TRUE}
+
+
+# import eggNOG annotation. create an object with gene name as list name and Go terms inside each list element as a vector.
+
+#Genes of interest
+
+row.names(sig_Irrigation_in_NoAMF)
+  geneList <- factor(as.integer(eggNOG4$geneID %in% gsub("gene-","",row.names(sig_Irrigation_in_NoAMF)))) #define which genes 
+names(geneList) <- eggNOG4$geneID
+str(geneList)
+
+# create data object
+GOdata <- new("topGOdata", ontology = "BP", allGenes = geneList, annot = annFUN.gene2GO, gene2GO = eggNOG4b, nodeSize = 10)
+
+#perform test
+resultFisher <- runTest(GOdata, algorithm = "classic", statistic = "fisher")
+
+
+# viz test only fisher
+
+allGO = usedGO(object = GOdata)
+allResR4 <- GenTable(GOdata, classicFisher = resultFisher, ranksOf = "classicFisher", topNodes = length(allGO))
+GO_IrrigationEffect_NOAMF<-allResR4
+
+allResR4Sign<-allResR4[allResR4$classicFisher<0.05,]
+showSigOfNodes(GOdata, score(resultFisher), firstSigNodes = 5, useInfo = 'all')
+
+
+printGraph(GOdata, resultFisher, firstSigNodes = 5, fn.prefix = "EffectAMFArgane", useInfo = "all", pdfSW = TRUE)
+
+
+
+write.table(allResR4Sign
+, "/Users/im/Documents/UniFR/2024_FRIBURG2/03_2024_RNAseqDrought/Results/GO_enriched_DroughtEffect_NoAMF.tsv",quote = F,sep = "\t",row.names = T) 
+
+# We then used go-figure to visualize the clusters of related GO terms: 
+#https://gitlab.com/evogenlab/GO-Figure#running-go-figure
+# in bash
+#conda activate go-figure  
+#gofigure.py -j topgo -i ~/Documents/2024_FRIBURG2/03_2024_RNAseqDrought/Results/GO_Sign_CommonNoAMFAMF_Irrigation.tsv -o ~/Documents/2024_FRIBURG2/03_2024_RNAseqDrought/Go-figure/
+
+
+```
+
+
+##  Mycorrhiza
+
+
+### Irrigation effect in Amf
+
+
+```{r 21 GO Irrigation,echo =TRUE}
+
+
+# import eggNOG annotation. create an object with gene name as list name and Go terms inside each list element as a vector.
+
+#Genes of interest
+
+row.names(sig_Irrigation_in_AMF)
+  geneList <- factor(as.integer(eggNOG4$geneID %in% gsub("gene-","",row.names(sig_Irrigation_in_AMF)))) #define which genes 
+names(geneList) <- eggNOG4$geneID
+str(geneList)
+
+# create data object
+GOdata <- new("topGOdata", ontology = "BP", allGenes = geneList, annot = annFUN.gene2GO, gene2GO = eggNOG4b, nodeSize = 10)
+
+#perform test
+resultFisher <- runTest(GOdata, algorithm = "classic", statistic = "fisher")
+
+
+# viz test only fisher
+
+allGO = usedGO(object = GOdata)
+allResR4 <- GenTable(GOdata, classicFisher = resultFisher, ranksOf = "classicFisher", topNodes = length(allGO))
+GO_IrrigationEffect_AMF<-allResR4
+allResR4Sign<-allResR4[allResR4$classicFisher<0.05,]
+showSigOfNodes(GOdata, score(resultFisher), firstSigNodes = 5, useInfo = 'all')
+
+
+printGraph(GOdata, resultFisher, firstSigNodes = 5, fn.prefix = "EffectAMFArgane", useInfo = "all", pdfSW = TRUE)
+
+
+write.table(allResR4Sign
+, "/Users/im/Documents/UniFR/2024_FRIBURG2/03_2024_RNAseqDrought/Results/GO_enriched_DroughtEffect_AMF.tsv",quote = F,sep = "\t",row.names = T) 
+
+# We then used go-figure to visualize the clusters of related GO terms: 
+#https://gitlab.com/evogenlab/GO-Figure#running-go-figure
+# in bash
+#conda activate go-figure  
+#gofigure.py -j topgo -i ~/Documents/2024_FRIBURG2/03_2024_RNAseqDrought/Results/GO_Sign_CommonNoAMFAMF_Irrigation.tsv -o ~/Documents/2024_FRIBURG2/03_2024_RNAseqDrought/Go-figure/
+
+
+```
+
+
+
+
+
+### pheatmap different go terms by hypothesis  Dorught Effect
+```{r 210 GO 4 hypothesis Drought effect,echo =TRUE}
+
+# Irrigation effect
+SumIrrigationEffect<-merge(GO_IrrigationEffect_NOAMF[,c(1,2,6)],GO_IrrigationEffect_AMF[,c(1,6)],by="GO.ID")
+# modify format
+colnames(SumIrrigationEffect)<-c("GO.ID","Term","IrrigationNOAMF","IrrigationAMF")
+SumIrrigationEffect$IrrigationNOAMF<-as.numeric(SumIrrigationEffect$IrrigationNOAMF)
+SumIrrigationEffect$IrrigationAMF<-as.numeric(SumIrrigationEffect$IrrigationAMF)
+rownames(SumIrrigationEffect)<-SumIrrigationEffect$GO.ID
+
+# filter only a significant value in a column
+SumIrrigationEffect_filtered <- SumIrrigationEffect[apply(SumIrrigationEffect < 0.05, 1, any), ]
+
+#significant in both
+SumIrrigationEffect_filtered[SumIrrigationEffect_filtered$IrrigationNOAMF<0.05 & SumIrrigationEffect_filtered$IrrigationAMF<0.05,]
+#significant when no AMF
+SumIrrigationEffect_filtered[SumIrrigationEffect_filtered$IrrigationNOAMF<0.05 & SumIrrigationEffect_filtered$IrrigationAMF>0.05,]
+#significant when AMF
+SumIrrigationEffect_filtered[SumIrrigationEffect_filtered$IrrigationNOAMF>0.05 & SumIrrigationEffect_filtered$IrrigationAMF<0.05,]
+
+# figure
+my_colors <- c("darkgreen", "gray")
+breaks <- c(0, 0.05, 1)
+pheatmap(SumIrrigationEffect_filtered[,3:4],color = my_colors,breaks = breaks)
+```
+
+### pheatmap different go terms by hypothesis  AMF Effect
+```{r 210 GO 4 hypothesis AMF effect,echo =TRUE}
+
+# Irrigation effect
+SumAMFEffect<-merge(GO_AMFEffect_WellWatered[,c(1,2,6)],GO_AMFEffect_Drought[,c(1,6)],by="GO.ID")
+# modify format
+colnames(SumAMFEffect)<-c("GO.ID","Term","AMFWellWatered","AMFDrought")
+SumAMFEffect$AMFWellWatered<-as.numeric(SumAMFEffect$AMFWellWatered)
+SumAMFEffect$AMFDrought<-as.numeric(SumAMFEffect$AMFDrought)
+rownames(SumAMFEffect)<-SumAMFEffect$GO.ID
+
+# filter only a significant value in a column
+SumAMFEffect_filtered <- SumAMFEffect[apply(SumAMFEffect < 0.05, 1, any), ]
+
+#significant in both
+AMFeffectGOSignboth<-SumAMFEffect_filtered[SumAMFEffect_filtered$AMFWellWatered<0.05 & SumAMFEffect_filtered$AMFDrought<0.05,]
+write.table(SumAMFEffect_filtered
+, "/Users/im/Documents/UniFR/2024_FRIBURG2/03_2024_RNAseqDrought/Results/GoInMycEffect_WW_Drought_v2.tsv",quote = F,sep = "\t",row.names = T)
+
+#significant when wellwatered
+SumAMFEffect_filtered[SumAMFEffect_filtered$AMFWellWatered<0.05 & SumAMFEffect_filtered$AMFDrought>0.05,]
+#significant when drought
+SumAMFEffect_filtered[SumAMFEffect_filtered$AMFWellWatered>0.05 & SumAMFEffect_filtered$AMFDrought<0.05,]
+
+# figure
+my_colors <- c("darkgreen", "gray")
+breaks <- c(0, 0.05, 1)
+pheatmap(SumAMFEffect_filtered[,3:4],color = my_colors,breaks = breaks)
+```
+
+### pheatmap different aLL hypotheisis together
+```{r 210 GO 4 hypothesis ALL effects,echo =TRUE}
+
+
+# Irrigation effect
+SumALLEffects<-merge(SumIrrigationEffect[,c(1,2,3,4)],SumAMFEffect[,c(1,3,4)],by="GO.ID")
+# modify format
+
+rownames(SumALLEffects)<-SumALLEffects$GO.ID
+
+# filter only a significant value in a column
+SumALLEffects_filtered <- SumALLEffects[apply(SumAMFEffect < 0.05, 1, any), ]
+
+#significant in both effect
+SumAMFEffect_filtered[SumAMFEffect_filtered$AMFWellWatered<0.05 & SumAMFEffect_filtered$AMFDrought<0.05,]
+#significant when wellwatered
+SumAMFEffect_filtered[SumAMFEffect_filtered$AMFWellWatered<0.05 & SumAMFEffect_filtered$AMFDrought>0.05,]
+#significant when drought
+SumAMFEffect_filtered[SumAMFEffect_filtered$AMFWellWatered>0.05 & SumAMFEffect_filtered$AMFDrought<0.05,]
+
+# figure
+my_colors <- c("darkgreen", "gray")
+breaks <- c(0, 0.05, 1)
+pheatmap(SumALLEffects_filtered[,3:6],color = my_colors,breaks = breaks)
+```
+
+
+
+
+# 8. GO ENrichement Main effects
+
+
+```{r 28 GO Main genes,echo =TRUE}
+
+# Main genes Irrigation
+
+# import eggNOG annotation. create an object with gene name as list name and Go terms inside each list element as a vector.
+
+#Genes of interest
+
+  geneList <- factor(as.integer(eggNOG4$geneID %in% genes_Irrigation)) #define which genes 
+names(geneList) <- eggNOG4$geneID
+str(geneList)
+
+# create data object
+GOdata <- new("topGOdata", ontology = "BP", allGenes = geneList, annot = annFUN.gene2GO, gene2GO = eggNOG4b, nodeSize = 10)
+
+#perform test
+resultFisher <- runTest(GOdata, algorithm = "classic", statistic = "fisher")
+
+
+# viz test only fisher
+
+allGO = usedGO(object = GOdata)
+allResR4 <- GenTable(GOdata, classicFisher = resultFisher, ranksOf = "classicFisher", topNodes = length(allGO))
+GO_MainIrrigation<-allResR4
+
+allResR4Sign<-allResR4[allResR4$classicFisher<0.05,]
+showSigOfNodes(GOdata, score(resultFisher), firstSigNodes = 5, useInfo = 'all')
+
+
+printGraph(GOdata, resultFisher, firstSigNodes = 5, fn.prefix = "EffectAMFArgane", useInfo = "all", pdfSW = TRUE)
+
+
+write.table(allResR4Sign
+, "/Users/im/Documents/UniFR/2024_FRIBURG2/03_2024_RNAseqDrought/Results/GO_MainAMF.tsv",quote = F,sep = "\t",row.names = T) 
+
+
+# Main genes mycorrhiza
+
+#Genes of interest
+
+  geneList <- factor(as.integer(eggNOG4$geneID %in% genes_AMF)) #define which genes 
+names(geneList) <- eggNOG4$geneID
+str(geneList)
+
+# create data object
+GOdata <- new("topGOdata", ontology = "BP", allGenes = geneList, annot = annFUN.gene2GO, gene2GO = eggNOG4b, nodeSize = 10)
+
+#perform test
+resultFisher <- runTest(GOdata, algorithm = "classic", statistic = "fisher")
+
+
+# viz test only fisher
+
+allGO = usedGO(object = GOdata)
+allResR4 <- GenTable(GOdata, classicFisher = resultFisher, ranksOf = "classicFisher", topNodes = length(allGO))
+GO_MainAMF<-allResR4
+
+allResR4Sign<-allResR4[allResR4$classicFisher<0.05,]
+showSigOfNodes(GOdata, score(resultFisher), firstSigNodes = 5, useInfo = 'all')
+
+
+printGraph(GOdata, resultFisher, firstSigNodes = 5, fn.prefix = "EffectAMFArgane", useInfo = "all", pdfSW = TRUE)
+
+
+write.table(allResR4Sign
+, "/Users/im/Documents/UniFR/2024_FRIBURG2/03_2024_RNAseqDrought/Results/GO_MainIrrigation.tsv",quote = F,sep = "\t",row.names = T) 
+
+# We then used go-figure to visualize the clusters of related GO terms: 
+#https://gitlab.com/evogenlab/GO-Figure#running-go-figure
+# in bash
+#conda activate go-figure  
+#gofigure.py -j topgo -i ~/Documents/2024_FRIBURG2/03_2024_RNAseqDrought/Results/GO_Sign_CommonNoAMFAMF_Irrigation.tsv -o ~/Documents/2024_FRIBURG2/03_2024_RNAseqDrought/Go-figure/
+
+
+```
+
+
+
+
+### Well watered mycorrhiza 
+
+
+```{r 21b GO Irrigation,echo =TRUE}
+
+
+# import eggNOG annotation. create an object with gene name as list name and Go terms inside each list element as a vector.
+
+#Genes of interest
+
+
+  geneList <- factor(as.integer(eggNOG4$geneID %in% gsub("gene-","",c(common_AMF,unique_80FC)))) #define which genes 
+names(geneList) <- eggNOG4$geneID
+str(geneList)
+
+# create data object
+GOdata <- new("topGOdata", ontology = "BP", allGenes = geneList, annot = annFUN.gene2GO, gene2GO = eggNOG4b, nodeSize = 10)
+
+#perform test
+resultFisher <- runTest(GOdata, algorithm = "classic", statistic = "fisher")
+
+
+# viz test only fisher
+
+allGO = usedGO(object = GOdata)
+allResR4 <- GenTable(GOdata, classicFisher = resultFisher, ranksOf = "classicFisher", topNodes = length(allGO))
+
+allResR4Sign<-allResR4[allResR4$classicFisher<0.05,]
+showSigOfNodes(GOdata, score(resultFisher), firstSigNodes = 5, useInfo = 'all')
+
+
+printGraph(GOdata, resultFisher, firstSigNodes = 5, fn.prefix = "EffectAMFArgane", useInfo = "all", pdfSW = TRUE)
+
+
+write.table(allResR4Sign
+, "/Users/im/Documents/UniFR/2024_FRIBURG2/03_2024_RNAseqDrought/Results/GO_Sign_UniqueWellWatered_Mycorrhiza.tsv",quote = F,sep = "\t",row.names = F) 
+
+
+```
+
+### Drought effect in mycorrhiza
+
+
+```{r 21c GO Irrigation,echo =TRUE}
+
+
+# import eggNOG annotation. create an object with gene name as list name and Go terms inside each list element as a vector.
+
+#Genes of interest
+
+
+  geneList <- factor(as.integer(eggNOG4$geneID %in% gsub("gene-","",c(common_AMF,unique_20FC)))) #define which genes 
+names(geneList) <- eggNOG4$geneID
+str(geneList)
+
+# create data object
+GOdata <- new("topGOdata", ontology = "BP", allGenes = geneList, annot = annFUN.gene2GO, gene2GO = eggNOG4b, nodeSize = 10)
+
+#perform test
+resultFisher <- runTest(GOdata, algorithm = "classic", statistic = "fisher")
+
+
+# viz test only fisher
+
+allGO = usedGO(object = GOdata)
+allResR4 <- GenTable(GOdata, classicFisher = resultFisher, ranksOf = "classicFisher", topNodes = length(allGO))
+
+allResR4Sign<-allResR4[allResR4$classicFisher<0.05,]
+showSigOfNodes(GOdata, score(resultFisher), firstSigNodes = 5, useInfo = 'all')
+
+
+printGraph(GOdata, resultFisher, firstSigNodes = 5, fn.prefix = "EffectAMFArgane", useInfo = "all", pdfSW = TRUE)
+
+
+write.table(allResR4Sign, "/Users/im/Documents/UniFR/2024_FRIBURG2/03_2024_RNAseqDrought/Results/GO_Sign_UniqueDrought_Mycorrhiza.tsv",quote = F,sep = "\t",row.names = F) 
+
+
+```
+
+
+
+## Commmon Irrigation and Mycorrhiza
+
+
+```{r 22 GO Irrigation and Mycorrhiza,echo =TRUE}
+
+
+# import eggNOG annotation. create an object with gene name as list name and Go terms inside each list element as a vector.
+
+#Genes of interest
+
+
+  geneList <- factor(as.integer(eggNOG4$geneID %in% gsub("gene-","",common_IrrigationAMF_VF))) #define which genes are interesting or not
+names(geneList) <- eggNOG4$geneID
+str(geneList)
+
+# create data object
+GOdata <- new("topGOdata", ontology = "BP", allGenes = geneList, annot = annFUN.gene2GO, gene2GO = eggNOG4b, nodeSize = 10)
+
+#perform test
+resultFisher <- runTest(GOdata, algorithm = "classic", statistic = "fisher")
+
+
+# viz test only fisher
+
+allGO = usedGO(object = GOdata)
+allResR4 <- GenTable(GOdata, classicFisher = resultFisher, ranksOf = "classicFisher", topNodes = length(allGO))
+
+allResR4Sign<-allResR4[allResR4$classicFisher<0.05,]
+showSigOfNodes(GOdata, score(resultFisher), firstSigNodes = 5, useInfo = 'all')
+
+
+printGraph(GOdata, resultFisher, firstSigNodes = 5, fn.prefix = "EffectAMFArgane", useInfo = "all", pdfSW = TRUE)
+
+
+write.table(allResR4Sign
+, "/Users/im/Documents/UniFR/2024_FRIBURG2/03_2024_RNAseqDrought/Results/GO_Sign_CommonIrrigationMycorrhiza.tsv",quote = F,sep = "\t",row.names = F) 
+
+
+```
+# 9. Expression of Mycorrhizal genes
+```{r 23 Expression Myc genes,echo =TRUE}
+
+
+#list of myc genes
+MycGenes<-data.frame(ID=c("g14092.t1","g6817.t1","g7278.t1","g4328.t1","g17011.t1","g6530.t1","g7476.t1","g14091.t1","g12105.t1","g14601.t1","g10802.t1"),Name=c("DMI2","IDP3a","IDP3b","VAPYRIN","Castor","STR1","DMI3","STR2a","STR2b","RAM1","RAM2"))
+#mycEffec wellWatered plants
+WWMycGenes<-res_AMF_at_80FC[rownames(res_AMF_at_80FC)%in%MycGenes$ID,]
+#myc effect dorught plants
+DroughtMycGenes<-res_AMF_at_20FC[rownames(res_AMF_at_20FC)%in%MycGenes$ID,]
+PheatMycGenes<-cbind.data.frame(WellWatered=(WWMycGenes$log2FoldChange),Drought=DroughtMycGenes$log2FoldChange)
+rownames(PheatMycGenes)<-paste(MycGenes$Name[match(rownames(WWMycGenes), MycGenes$ID)],rownames(WWMycGenes),sep = "_")
+
+
+# Extract padj for each gene in both datasets
+padj1 <- WWMycGenes[rownames(WWMycGenes), "padj"]
+padj2 <- DroughtMycGenes[rownames(DroughtMycGenes), "padj"]
+
+getStars <- function(p) { ifelse(is.na(p), "", ifelse(p < 0.001, "***", ifelse(p < 0.01, "**",ifelse(p < 0.05, "*", ""))))}
+
+stars <- matrix("", nrow = nrow(PheatMycGenes), ncol = ncol(PheatMycGenes))
+colnames(stars) <- colnames(PheatMycGenes)
+rownames(stars) <- rownames(PheatMycGenes)
+
+stars[, "WellWatered"] <- getStars(padj1)
+stars[, "Drought"]     <- getStars(padj2)
+
+pheatmap(PheatMycGenes,cluster_cols = F,
+         display_numbers = stars,
+         number_color = "black")
+
+
+
+MycGenes[MycGenes$ID %in% rownames(WWMycGenes),]
+pheatmap(vsd_mat[rownames(vsd_mat)%in%MycGenes$ID,],)
+Myco<-vsd_mat[rownames(vsd_mat)%in%MycGenes$ID,]
+Myco2<-Myco[,c(7,8,9,1,2,3,10,11,12,4,5,6)]
+pheatmap(Myco2,cluster_cols = F)
+```
+
+# 10. Expression of Mycorrhizal genes Rich Dataset
+```{r 23 Expression Myc genes Rich,echo =TRUE}
+
+Rich<-read_excel("/Users/im/Documents/UniFR/2024_FRIBURG2/03_2024_RNAseqDrought/03_AMF_Markers/05_Rich_MycGenes/BesthitRich_Hap1.xlsx", sheet = "HomologsVF")
+
+#list of myc genes
+MycGenes<-Rich
+#mycEffec wellWatered plants
+WWMycGenes<-res_AMF_at_80FC[rownames(res_AMF_at_80FC)%in%MycGenes$ID,]
+#myc effect dorught plants
+DroughtMycGenes<-res_AMF_at_20FC[rownames(res_AMF_at_20FC)%in%MycGenes$ID,]
+PheatMycGenes<-cbind.data.frame(WellWatered=(WWMycGenes$log2FoldChange),Drought=DroughtMycGenes$log2FoldChange)
+rownames(PheatMycGenes)<-paste(MycGenes$Name[match(rownames(WWMycGenes), MycGenes$ID)],rownames(WWMycGenes),sep = "_")
+
+PheatMycGenes<- PheatMycGenes[match(paste(MycGenes$Name,MycGenes$ID,sep="_"), rownames(PheatMycGenes)), ]
+PheatMycGenes<-na.omit(PheatMycGenes)
+
+
+heatmap_IDs <- sub(".*_", "", rownames(PheatMycGenes))
+
+# 2. Extract padj values in the EXACT order of the heatmap
+# We use heatmap_IDs to 'look up' the values in the original tables
+padj_WW      <- WWMycGenes[heatmap_IDs, "padj"]
+padj_Drought <- DroughtMycGenes[heatmap_IDs, "padj"]
+
+# 3. Create and fill the stars matrix
+getStars <- function(p) { 
+  ifelse(is.na(p), "", 
+  ifelse(p < 0.001, "***", 
+  ifelse(p < 0.01, "**",
+  ifelse(p < 0.05, "*", ""))))
+}
+
+stars <- matrix("", nrow = nrow(PheatMycGenes), ncol = ncol(PheatMycGenes))
+colnames(stars) <- colnames(PheatMycGenes)
+rownames(stars) <- rownames(PheatMycGenes)
+
+# Now these assignments are perfectly aligned
+stars[, "WellWatered"] <- getStars(padj_WW)
+stars[, "Drought"]     <- getStars(padj_Drought)
+
+#add £Hap2 PT4
+PT4Hap2Stars<-data.frame(WellWatered=c("***","***"),Drought=c("***","***"))
+rownames(PT4Hap2Stars)<-c("PT4_g170.t1*","PT4_g171.t1*")
+
+stars2<- rbind.data.frame(stars,PT4Hap2Stars)
+
+
+# 4. Add the Category annotation (for the division you wanted earlier)
+# We match the cleaned IDs back to the original Category list
+anno_col <- data.frame(Category = MycGenes$Category[match(heatmap_IDs, MycGenes$ID)])
+rownames(anno_col) <- rownames(PheatMycGenes)
+
+# add annot Hap2 PTç
+PT4Hap2anno_col<-data.frame(Category=c("ArbusculeRelatedGenes","ArbusculeRelatedGenes"))
+rownames(PT4Hap2anno_col)<-c("PT4_g170.t1*","PT4_g171.t1*")
+
+anno_col2<-rbind.data.frame(anno_col,PT4Hap2anno_col) 
+
+# Find the gaps
+gaps <- which(anno_col$Category[-1] != anno_col$Category[-nrow(anno_col)])
+
+# 5. Final Plot
+pheatmap(t(PheatMycGenes), 
+         cluster_cols = FALSE, 
+         cluster_rows = FALSE,
+         display_numbers = t(stars),
+         number_color = "black",
+         annotation_col = anno_col,
+         gaps_col = gaps,cellheight = 30)
+
+# only 1 gene was present only in hap2. PT4. 2 copies in Hap2 
+# The log2FC values are 12.5645
+PT4Hap2<-data.frame(WellWatered=c(12.5645,10.1433),Drought=c(9.24709,7.80552))
+rownames(PT4Hap2)<-c("PT4_g170.t1*","PT4_g171.t1*")
+
+# with hap 2
+
+PheatMycGenes2<-rbind.data.frame(PheatMycGenes,PT4Hap2)
+pheatmap(t(PheatMycGenes2), 
+         cluster_cols = FALSE, 
+         cluster_rows = FALSE,
+         display_numbers = t(stars2),
+         number_color = "black",
+         annotation_col = anno_col2,
+         gaps_col = gaps,cellheight = 30)
+
+
+vsd_mat[rownames(vsd_mat)%in%c("g170.t1","g171.t1"),]
+res_AMF_at_80FC[rownames(res_AMF_at_80FC)%in% c("g170.t1","g171.t1"), ]
+res_AMF_at_20FC[rownames(res_AMF_at_20FC)%in% c("g169.t1","g170.t1","g171.t1","g172.t1"), ]
+```
+
+
+# 11. Expression of Drough genes
+```{r 24 Expression Drough genes,echo =TRUE}
+
+
+DroughtGenes <- read_xlsx("/Users/im/Documents/UniFR/2024_FRIBURG2/03_2024_RNAseqDrought/04_Drought_Markers/02_OMA_orthologs/Orthologs_Argan_Athaliana_DroughtStrategies.xlsx",sheet = "OrthologArgan",)
+
+# Drought effect on Non-mycorrhizal plants
+#mycEffec wellWatered plants
+NonAMFDroughtGenesGenes<-res_Irrigation_in_NoAMF[rownames(res_Irrigation_in_NoAMF)%in%DroughtGenes$Argan,]
+# Drought effect on Mycorrhizal plants
+#myc effect dorught plants
+AMFDroughtGenesGenes<-res_Irrigation_in_AMF[rownames(res_Irrigation_in_AMF)%in%DroughtGenes$Argan,]
+
+PheatMycGenes<-cbind.data.frame(NonMycorrhizal=NonAMFDroughtGenesGenes$log2FoldChange,Mycorrhizal=AMFDroughtGenesGenes$log2FoldChange)
+rownames(PheatMycGenes)<-paste(DroughtGenes$GeneName[match(rownames(NonAMFDroughtGenesGenes), DroughtGenes$Argan)],rownames(NonAMFDroughtGenesGenes),sep = "_")
+
+# Extract padj for each gene in both datasets
+padj1 <- NonAMFDroughtGenesGenes[unlist(lapply(strsplit(rownames(PheatMycGenes),"_"), function (x) x[[2]])), "padj"]
+padj2 <- AMFDroughtGenesGenes[unlist(lapply(strsplit(rownames(PheatMycGenes),"_"), function (x) x[[2]])), "padj"]
+
+getStars <- function(p) { ifelse(is.na(p), "", ifelse(p < 0.001, "***", ifelse(p < 0.01, "**",ifelse(p < 0.05, "*", ""))))}
+
+stars <- matrix("", nrow = nrow(PheatMycGenes), ncol = ncol(PheatMycGenes))
+colnames(stars) <- colnames(PheatMycGenes)[1:2]
+rownames(stars) <- rownames(PheatMycGenes)
+
+stars[, "NonMycorrhizal"] <- getStars(padj1)
+stars[, "Mycorrhizal"]     <- getStars(padj2)
+
+
+
+pheatmap(PheatMycGenes[,1:2],cluster_cols = F,
+         display_numbers = stars,
+         number_color = "black")
+
+DroughtGenes$pheatname<-paste(DroughtGenes$GeneName,DroughtGenes$Argan,sep = "_")
+PheatMycGenes$pheatname<-rownames(PheatMycGenes)
+
+PheatMycGenes_v2<-merge(PheatMycGenes,DroughtGenes,by="pheatname")
+rownames(PheatMycGenes_v2)<-PheatMycGenes_v2$pheatname
+pheatmap(PheatMycGenes_v2[,2:3],cluster_cols = F,
+         display_numbers = stars,
+         number_color = "black")
+
+# 2. Sort the Data explicitly
+# We filter for 'tolerance' first, then 'avoidance', then bind them.
+# This ensures the specific order you requested.
+df_sorted <- PheatMycGenes_v2 %>%
+  arrange(factor(Strategy, levels = c("tolerance", "avoidance")))
+
+# 3. Prepare the Numeric Matrix for Pheatmap
+# Move gene names to rownames and remove text columns
+heatmap_matrix <- df_sorted %>%
+  dplyr::select(NonMycorrhizal, Mycorrhizal) %>%
+  as.matrix()
+
+
+# 4. Create the Annotation DataFrame (The side bar)
+annotation_df <- data.frame(Strategy = df_sorted$Strategy)
+rownames(annotation_df) <- rownames(df_sorted)
+
+# Define specific colors (Optional, but looks professional)
+ann_colors <- list(
+  Strategy = c(tolerance = "#E41A1C", avoidance = "#377EB8")
+)
+
+# 5. Calculate the gap position (Optional)
+# This finds the row number where the strategy changes from tolerance to avoidance
+gap_row <- which(df_sorted$Strategy == "avoidance")[1] - 1
+
+stars_sorted <- stars[rownames(df_sorted), ]
+
+# 6. Generate the Heatmap
+pheatmap(df_sorted[,2:3],
+         annotation_row = annotation_df,
+         annotation_colors = ann_colors,
+         cluster_rows = FALSE,       # CRITICAL: Keep our sorted order
+         cluster_cols = FALSE,       # Optional: Cluster columns if you want
+         gaps_row = gap_row,         # Adds a white line between groups
+         main = "Drought Response: Tolerance vs Avoidance",
+         show_rownames = TRUE,
+         display_numbers = stars_sorted,
+         number_color = "black")
+
+
+
+```
+
+
+# 6. Differential Isoform Expression  Analysis
+
+### Loading Count Data, Analysis on first Isoform
+
+The raw gene count data is read from a tab-delimited file. The first five annotation columns are removed, and the column names are cleaned to extract meaningful sample identifiers.
+
+```{r 100, echo=T}
+
+counts <- read.delim("/Users/im/Documents/UniFR/2024_FRIBURG2/03_2024_RNAseqDrought/01_FeatureCounts/FC_Hap1_ALL.txt", comment.char="#", row.names=1)
+counts <- counts[ , -(1:5)]  # Remove annotation columns
+colnames(counts) <- lapply(strsplit(colnames(counts),split = "_"), function (x) c(x[[1]]))
+
+coldata <- data.frame(
+  row.names = colnames(counts),
+  Myco = c(rep("AMF",6),rep("NoAMF",6)),
+  Irrigation=c(rep("80FC",3),rep("20FC",3),rep("80FC",3),rep("20FC",3) )
+  )
+
+dds <- DESeqDataSetFromMatrix(countData = counts, colData = coldata, design = ~ Myco*Irrigation)
+
+## Filtering Low Counts
+dds <- dds[rowSums(counts(dds)) > 10, ]
+dds <- DESeq(dds)
+
+res <- results(dds)
+
+vsd <- vst(dds, blind = FALSE)
+vsd_mat <- assay(vsd)
+
+res_Myco_at_20FC <- results(dds, contrast = c("Myco", "AMF", "NoAMF"))
+res_Myco_at_20FC[order(res_Myco_at_20FC$padj), ]
+sig_Myco_at_20FC <- subset(res_Myco_at_20FC, padj < 0.05 & abs(log2FoldChange) > 2)
+
+#Store significant results in other than isoform t1
+sig_Myco_at_20FC_Iso<-sig_Myco_at_20FC[grep("t1",rownames(sig_Myco_at_20FC),invert=T),]
+gsub("t5","t1",gsub("t4","t1",gsub("t3","t1",gsub("t2","t1",rownames(sig_Myco_at_20FC_Iso)))))
+
+res_Myco_at_20FC[rownames(res_Myco_at_20FC) %in% gsub("t5","t1",gsub("t4","t1",gsub("t3","t1",gsub("t2","t1",rownames(sig_Myco_at_20FC_Iso))))),]
+
+
+IsosDE<-table(sub("\\.t[0-9]+$", "", rownames(sig_Myco_at_20FC)))  # DE isoforms per gene
+IsosDE[IsosDE>1]
+hist(IsosDE)
+
+
+### Plot coverage around inversion 2
+# Start : 22M
+# End: 65M
+
+Cov <- read.delim("/Users/im/Documents/UniFR/2024_FRIBURG2/02_2024_ArganGenome/03_Manuscript_v6/10_RemappingReads/NoCoverage_InvChr2_Inversion.txt", comment.char="#",header = F)
+colnames(Cov)<- c("Chromosome","Position","Coverage")
+
+# create vector for start 
+
+plot(x = Cov$Position,y=Cov$Coverage)
+abline(v=24003000,col="red")
+abline(v=63847000,col="red")
+
+bam_file <- "/Users/im/Documents/UniFR/2024_FRIBURG2/02_2024_ArganGenome/03_Manuscript_v6/10_RemappingReads/CombinedClean_hap1.bam"
+gtf_file <- "/Users/im/Documents/UniFR/2024_FRIBURG2/02_2024_ArganGenome/03_Manuscript_v6/04_Annotation/01_hap1/Sspinosum_hap1.gtf"
+
+
+
+
+
+```
